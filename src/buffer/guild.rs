@@ -6,7 +6,10 @@ use crate::{
     refcell::RefCell,
     twilight_utils::ext::GuildChannelExt,
 };
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 use twilight_cache_inmemory::model::CachedGuild as TwilightGuild;
 use twilight_model::{
     channel::GuildChannel as TwilightChannel,
@@ -38,9 +41,10 @@ impl GuildBuffer {
                 move |_: &Weechat, _: &Buffer| {
                     tracing::trace!(buffer.id=%id, buffer.name=%name, "Buffer close");
                     if let Some(mut instance) = instance.try_borrow_guilds_mut() {
-                        if let Some(x) = instance.remove(&id) {
-                            x.inner.borrow_mut().closed = true;
-                        }
+                        instance
+                            .remove(&id)
+                            .expect("guild must be in instance")
+                            .set_closed();
                     }
                     Ok(())
                 }
@@ -66,7 +70,7 @@ pub struct GuildInner {
     instance: Instance,
     guild: TwilightGuild,
     buffer: GuildBuffer,
-    channels: HashMap<ChannelId, Channel>,
+    channels: HashSet<ChannelId>,
     closed: bool,
 }
 
@@ -82,7 +86,7 @@ impl GuildInner {
             instance,
             buffer,
             guild,
-            channels: HashMap::new(),
+            channels: HashSet::new(),
             closed: false,
         }
     }
@@ -241,7 +245,6 @@ impl Guild {
         channel: &TwilightChannel,
         inner: &mut GuildInner,
     ) -> anyhow::Result<Channel> {
-        let weak_inner = Rc::downgrade(&self.inner);
         let channel_id = channel.id();
         let last_message_id = channel.last_message_id();
         let channel = crate::buffer::channel::Channel::guild(
@@ -250,18 +253,13 @@ impl Guild {
             &inner.conn,
             &self.config,
             &inner.instance,
-            move |_| {
-                if let Some(inner) = weak_inner.upgrade() {
-                    if let Ok(mut inner) = inner.try_borrow_mut() {
-                        if let Some(channel) = inner.channels.remove(&channel_id) {
-                            channel.set_closed();
-                        }
-                    }
-                }
-            },
         )?;
 
-        inner.channels.insert(channel_id, channel.clone());
+        inner
+            .instance
+            .borrow_channels_mut()
+            .insert(channel_id, channel.clone());
+        inner.channels.insert(channel_id);
 
         if let Some(read_state) = inner.conn.cache.read_state(channel_id) {
             if last_message_id > Some(read_state.last_message_id) {
@@ -277,6 +275,16 @@ impl Guild {
     }
 
     pub fn channels(&self) -> HashMap<ChannelId, Channel> {
-        self.inner.borrow().channels.clone()
+        let inner = self.inner.borrow();
+        let channels = inner.instance.borrow_channels();
+        channels
+            .iter()
+            .filter(|(i, _)| inner.channels.contains(i))
+            .map(|(i, c)| (*i, c.clone()))
+            .collect()
+    }
+
+    fn set_closed(&self) {
+        self.inner.borrow_mut().closed = true;
     }
 }
