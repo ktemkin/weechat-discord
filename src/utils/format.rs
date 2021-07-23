@@ -153,14 +153,14 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
         },
         BlockQuote(children) => {
             out.append(format_block_quote(
-                collect_children(children, state).lines(true).into_iter(),
+                collect_children(children, state).lines().into_iter(),
             ));
             out
         },
         SingleBlockQuote(children) => {
             out.append(format_block_quote(
                 collect_children(children, state)
-                    .lines(true)
+                    .lines()
                     .into_iter()
                     .map(strip_leading_bracket),
             ));

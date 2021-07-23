@@ -1,11 +1,8 @@
 use super::Weechat2;
 use itertools::{Itertools, Position};
-use std::{
-    collections::{Bound, VecDeque},
-    ops::RangeBounds,
-};
+use std::{collections::Bound, ops::RangeBounds};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Style {
     Bold,
     Underline,
@@ -29,7 +26,7 @@ impl Style {
         }
     }
 
-    fn exact_unstyle(&self) -> Option<&str> {
+    fn try_unstyle(&self) -> Option<&str> {
         match self {
             Style::Bold => Some(Weechat2::color("-bold")),
             Style::Underline => Some(Weechat2::color("-underline")),
@@ -39,99 +36,78 @@ impl Style {
     }
 }
 
-#[derive(Clone, Debug)]
-struct StyleState {
-    bold: bool,
-    italic: bool,
-    underline: bool,
-    color: Option<String>,
-}
-
-impl StyleState {
-    pub fn new() -> Self {
-        Self {
-            bold: false,
-            italic: false,
-            underline: false,
-            color: None,
-        }
-    }
-
-    pub fn apply(&mut self, style: &Style) {
-        match style {
-            Style::Bold => self.bold = true,
-            Style::Underline => self.underline = true,
-            Style::Italic => self.italic = true,
-            Style::Reset => {
-                self.bold = false;
-                self.italic = false;
-                self.underline = false;
-                self.color = None;
-            },
-            Style::Color(color) => self.color = Some(color.clone()),
-        }
-    }
-
-    pub fn remove(&mut self, style: &Style) {
-        match style {
-            Style::Bold => self.bold = false,
-            Style::Underline => self.underline = false,
-            Style::Italic => self.italic = false,
-            Style::Reset => {},
-            Style::Color(_) => self.color = None,
-        }
-    }
-
-    fn styles(&self) -> Vec<Style> {
-        let mut out = Vec::new();
-        if self.bold {
-            out.push(Style::Bold);
-        }
-
-        if self.italic {
-            out.push(Style::Italic);
-        }
-
-        if self.underline {
-            out.push(Style::Underline);
-        }
-
-        if let Some(color) = &self.color {
-            out.push(Style::Color(color.clone()));
-        }
-
-        out
-    }
-
-    pub fn style(&self) -> String {
-        self.styles().iter().map(Style::style).join("")
-    }
-
-    pub fn unstyle(&self) -> String {
-        let mut out = String::new();
-        for style in self.styles() {
-            if let Some(unstyle) = style.exact_unstyle() {
-                out.push_str(unstyle);
-            } else {
-                return Weechat2::color("reset").to_owned();
-            }
-        }
-        out
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
-enum Operation {
+enum Op {
     PushStyle(Style),
     PopStyle(Style),
     Literal(String),
     Newline,
 }
 
+// Encapsulates style stack
+struct StyleState {
+    stack: Vec<Style>,
+}
+
+impl StyleState {
+    pub fn new() -> Self {
+        Self { stack: Vec::new() }
+    }
+
+    pub fn contains(&self, style: &Style) -> bool {
+        self.stack.contains(style)
+    }
+
+    pub fn push(&mut self, style: Style) {
+        self.stack.push(style);
+    }
+    pub fn pop(&mut self, style: &Style) {
+        let idx = self
+            .stack
+            .iter()
+            .rposition(|x| x == style)
+            .expect("to find requested style");
+        self.stack.remove(idx);
+    }
+
+    pub fn unique_styles(&self) -> Vec<Style> {
+        let mut stack = self.stack.to_owned();
+        stack.sort();
+        stack.dedup();
+        stack
+    }
+
+    pub fn style(&self) -> String {
+        let stack = self.unique_styles();
+
+        let mut out = String::new();
+        for style in stack {
+            out.push_str(style.style());
+        }
+        out
+    }
+
+    pub fn unstyle(&self) -> String {
+        let stack = self.unique_styles();
+
+        let mut out = String::new();
+        for style in stack {
+            match style.try_unstyle() {
+                Some(unstyle) => {
+                    out.push_str(unstyle);
+                },
+                // If we can't exactly clear a style we will need to use a reset, so just short circuit
+                // to return only the reset
+                None => return Weechat2::color("reset").into(),
+            };
+        }
+        out
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct StyledString {
-    ops: VecDeque<Operation>,
-    state: StyleState,
+    ops: Vec<Op>,
 }
 
 impl From<String> for StyledString {
@@ -145,7 +121,7 @@ impl From<String> for StyledString {
 impl From<&str> for StyledString {
     fn from(content: &str) -> Self {
         let mut out = Self::new();
-        out.push_str(&content);
+        out.push_str(content);
         out
     }
 }
@@ -158,114 +134,109 @@ impl Default for StyledString {
 
 impl StyledString {
     pub fn new() -> Self {
-        Self {
-            ops: VecDeque::new(),
-            state: StyleState::new(),
-        }
+        Self { ops: Vec::new() }
     }
 
-    fn push_op(&mut self, operation: Operation) {
-        self.ops.push_back(operation);
+    fn push_op(&mut self, op: Op) -> &mut Self {
+        self.ops.push(op);
+        self
+    }
+
+    /// Returns the minimal list of styles currently active
+    fn current_styles(&self) -> Vec<Style> {
+        let mut stack = StyleState::new();
+        for op in &self.ops {
+            match op {
+                Op::PushStyle(style) => stack.push(style.clone()),
+                Op::PopStyle(style) => stack.pop(style),
+                Op::Literal(_) | Op::Newline => {},
+            }
+        }
+
+        stack.unique_styles()
     }
 
     pub fn push_style(&mut self, style: Style) -> &mut Self {
-        self.state.apply(&style);
-        self.push_op(Operation::PushStyle(style));
+        self.push_op(Op::PushStyle(style));
         self
     }
 
     pub fn pop_style(&mut self, style: Style) -> &mut Self {
-        if self.state.styles().contains(&style) {
-            self.push_op(Operation::PopStyle(style));
-        }
+        self.push_op(Op::PopStyle(style));
         self
     }
 
     pub fn push_str(&mut self, str: &str) -> &mut Self {
         for line in str.split('\n').with_position() {
-            match line {
-                Position::Middle(_) | Position::Last(_) => {
-                    self.push_op(Operation::Newline);
-                },
-                _ => {},
+            if matches!(line, Position::Middle(_) | Position::Last(_)) {
+                self.push_op(Op::Newline);
             }
-            self.push_op(Operation::Literal(line.into_inner().to_owned()));
+            self.push_op(Op::Literal(line.into_inner().to_owned()));
         }
         self
     }
 
     pub fn push_styled_str(&mut self, style: Style, str: &str) -> &mut Self {
-        self.state.apply(&style);
-        self.push_op(Operation::PushStyle(style.clone()));
+        self.push_op(Op::PushStyle(style.clone()));
         self.push_str(str);
-        self.push_op(Operation::PopStyle(style));
+        self.push_op(Op::PopStyle(style));
         self
     }
 
     /// Add some other possibly styled text without it affecting the current styling
     pub fn absorb(&mut self, other: Self) -> &mut Self {
         // add other string
-        self.ops.extend(other.ops);
-        // clear other string style
-        self.ops.extend(
-            other
-                .state
-                .styles()
-                .into_iter()
-                .rev()
-                .map(Operation::PopStyle),
-        );
+        self.ops.extend(other.ops.clone());
+        // clear style from other string
+        self.ops
+            .extend(other.current_styles().into_iter().map(Op::PopStyle));
         self
     }
 
     /// Adds a styled string to the end of this string
     pub fn append(&mut self, other: Self) -> &mut Self {
         self.ops.extend(other.ops);
-        self.state = other.state;
         self
     }
 
     pub fn build(&self) -> String {
         let mut out = String::new();
 
-        let mut state = StyleState::new();
-        let mut style_stack = Vec::new();
+        let mut stack = StyleState::new();
 
-        for token in &self.ops {
-            match &token {
-                Operation::PushStyle(style) => {
-                    if !style_stack.contains(style) {
-                        state.apply(style);
-                        style_stack.push(style.clone());
+        for op in &self.ops {
+            match op {
+                Op::Literal(text) => {
+                    out.push_str(text);
+                },
+                Op::PushStyle(style) => {
+                    if !stack.contains(style) {
                         out.push_str(style.style());
                     }
+                    stack.push(style.clone());
                 },
-                Operation::PopStyle(tstyle) => {
-                    if style_stack.last() != Some(tstyle) {
-                        continue;
-                    }
-                    if let Some(style) = style_stack.pop() {
-                        state.remove(&style);
-                        // TODO: Improve by using delta
-                        match style.exact_unstyle() {
-                            Some(unstyle) => out.push_str(unstyle),
+                Op::PopStyle(style) => {
+                    stack.pop(style);
+                    if !stack.contains(style) {
+                        match style.try_unstyle() {
+                            Some(unstyle) => {
+                                out.push_str(unstyle);
+                            },
                             None => {
-                                // TODO: Optimize using "resetcolor"?
-                                out.push_str(Weechat2::color("reset"));
-                                out.push_str(&collect_styles(&style_stack).style());
+                                out.push_str(Style::Reset.style());
+                                out.push_str(&stack.style());
                             },
                         }
                     }
                 },
-                Operation::Literal(text) => out.push_str(&text),
-                Operation::Newline => {
+                Op::Newline => {
                     out.push('\n');
-                    out.push_str(&collect_styles(&style_stack).style());
+                    out.push_str(&stack.style());
                 },
             }
         }
 
-        out + &state.unstyle()
+        out + &stack.unstyle()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -273,37 +244,25 @@ impl StyledString {
     }
 
     // TODO: Make this an iterator
-    pub fn lines(self, closed: bool) -> Vec<StyledString> {
+    pub fn lines(self) -> Vec<StyledString> {
         let mut out = Vec::new();
-
-        let mut state = StyleState::new();
 
         let mut tmp = StyledString::new();
         for token in self.ops {
-            match &token {
-                Operation::PushStyle(style) => {
-                    state.apply(style);
+            match token {
+                Op::PushStyle(_) | Op::PopStyle(_) => {
                     tmp.push_op(token);
                 },
-                Operation::PopStyle(style) => {
-                    state.remove(style);
-                    tmp.push_op(token);
-                },
-                Operation::Literal(text) => {
+                Op::Literal(text) => {
                     debug_assert!(!text.contains('\n'));
-                    tmp.push_op(token);
+                    tmp.push_op(Op::Literal(text));
                 },
-                Operation::Newline => {
-                    if closed {
-                        tmp.ops
-                            .extend(state.styles().into_iter().rev().map(Operation::PopStyle));
-                        tmp.state = StyleState::new();
-                    }
+                Op::Newline => {
                     out.push(tmp.clone());
+                    let styles_to_keep = tmp.current_styles();
                     tmp = StyledString::new();
                     tmp.ops
-                        .extend(state.styles().into_iter().map(Operation::PushStyle));
-                    tmp.state = state.clone();
+                        .extend(styles_to_keep.into_iter().map(Op::PushStyle));
                 },
             }
         }
@@ -318,7 +277,7 @@ impl StyledString {
     pub fn find(&self, substr: &str) -> Option<usize> {
         let mut offset = 0;
         for op in &self.ops {
-            if let Operation::Literal(text) = op {
+            if let Op::Literal(text) = op {
                 if let Some(pos) = text.find(substr) {
                     return Some(pos + offset);
                 }
@@ -342,20 +301,20 @@ impl StyledString {
             Bound::Unbounded => usize::MAX,
         };
 
-        let mut out_ops = VecDeque::new();
+        let mut out_ops = Vec::new();
         let mut offset = 0;
         for op in self.ops {
             match op {
-                Operation::PushStyle(_) | Operation::PopStyle(_) => {
-                    out_ops.push_back(op);
+                Op::PushStyle(_) | Op::PopStyle(_) => {
+                    out_ops.push(op);
                 },
-                Operation::Literal(text) => {
+                Op::Literal(text) => {
                     if start > text.len() + offset {
                         offset += text.len();
-                        out_ops.push_back(Operation::Literal(text));
+                        out_ops.push(Op::Literal(text));
                         continue;
                     }
-                    out_ops.push_back(Operation::Literal(
+                    out_ops.push(Op::Literal(
                         text.get((start.saturating_sub(offset))..(end - offset).min(text.len()))
                             .unwrap_or_default()
                             .to_owned(),
@@ -366,31 +325,20 @@ impl StyledString {
                     }
                     break;
                 },
-                Operation::Newline => {
-                    out_ops.push_back(op);
+                Op::Newline => {
+                    out_ops.push(op);
                     offset += 1;
                 },
             }
         }
 
-        Self {
-            ops: out_ops,
-            state: StyleState::new(),
-        }
+        Self { ops: out_ops }
     }
-}
-
-fn collect_styles(stack: &[Style]) -> StyleState {
-    stack.iter().fold(StyleState::new(), |mut acc, x| {
-        acc.apply(x);
-        acc
-    })
 }
 
 #[cfg(test)]
 mod test {
-    use super::{Style, StyledString};
-    use crate::weechat2::styled_string::Operation;
+    use super::{Op, Style, StyledString};
 
     #[test]
     fn find() {
@@ -433,9 +381,9 @@ mod test {
         assert_eq!(
             Vec::from(string.ops),
             vec![
-                Operation::Literal("Foo".into()),
-                Operation::Newline,
-                Operation::Literal("Bar".into()),
+                Op::Literal("Foo".into()),
+                Op::Newline,
+                Op::Literal("Bar".into()),
             ]
         );
 
@@ -445,11 +393,11 @@ mod test {
         assert_eq!(
             Vec::from(string.ops),
             vec![
-                Operation::Literal("Foo".into()),
-                Operation::Newline,
-                Operation::Literal("Bar".into()),
-                Operation::Newline,
-                Operation::Literal("Baz".into()),
+                Op::Literal("Foo".into()),
+                Op::Newline,
+                Op::Literal("Bar".into()),
+                Op::Newline,
+                Op::Literal("Baz".into()),
             ]
         );
     }
@@ -468,7 +416,7 @@ mod test {
             .collect();
         assert_eq!(
             string
-                .lines(true)
+                .lines()
                 .iter()
                 .map(StyledString::build)
                 .collect::<Vec<_>>(),
@@ -508,7 +456,7 @@ mod test {
 
         assert_eq!(
             string.build(),
-            "italic[prefix]boldred[inner]resetbolditalic-bold[middle]bold[suffix]-bold-italic"
+            "italic[prefix]boldred[inner]-boldresetitalic[middle]bold[suffix]-bold-italic"
         );
     }
 
@@ -591,7 +539,7 @@ mod test {
 
         assert_eq!(
             &string.build(),
-            "[prefix]bold[one_bold][two_bold]-bold[one_bold][suffix]"
+            "[prefix]bold[one_bold][two_bold][one_bold]-bold[suffix]"
         )
     }
 
