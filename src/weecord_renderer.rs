@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     discord::discord_connection::ConnectionInner,
     match_map,
-    twilight_utils::ext::MessageExt,
+    twilight_utils::ext::{MessageExt, ShallowUser},
     utils::fold_lines,
     weechat2::{MessageRenderer, Style, StyledString, WeechatMessage},
     RefCell,
@@ -41,7 +41,7 @@ pub enum WeecordMessage {
         id: u64,
     },
     LocalEcho {
-        author: String,
+        guild_id: Option<GuildId>,
         content: String,
         timestamp: i64,
         nonce: u64,
@@ -73,9 +73,9 @@ impl WeecordMessage {
         }
     }
 
-    pub fn new_echo(author: String, content: String, nonce: u64) -> Self {
+    pub fn new_echo(guild_id: Option<GuildId>, content: String, nonce: u64) -> Self {
         Self::LocalEcho {
-            author,
+            guild_id,
             content,
             timestamp: chrono::Utc::now().timestamp(),
             nonce,
@@ -97,16 +97,32 @@ impl WeechatMessage<MessageId, State> for WeecordMessage {
     fn render(&self, state: &mut State) -> (String, String) {
         match self {
             WeecordMessage::LocalEcho {
-                author, content, ..
-            } => (
-                author.clone(),
-                format!(
-                    "{}{}{}",
-                    Weechat::color("244"),
-                    content,
-                    Weechat::color("resetcolor")
-                ),
-            ),
+                guild_id, content, ..
+            } => {
+                let content = crate::utils::discord_to_weechat(
+                    &content,
+                    &state.conn.cache,
+                    *guild_id,
+                    state.config.show_formatting_chars(),
+                    state.config.show_unknown_user_ids(),
+                    &mut Vec::new(),
+                );
+                (
+                    format_author(
+                        &state.conn.cache,
+                        &state.conn.cache.current_user().unwrap(),
+                        *guild_id,
+                        false,
+                    )
+                    .build(),
+                    format!(
+                        "{}{}{}",
+                        Weechat::color("244"),
+                        content.build(),
+                        Weechat::color("resetcolor")
+                    ),
+                )
+            },
             WeecordMessage::Text(msg) => render_msg(
                 &state.conn.cache,
                 &state.config,
@@ -639,6 +655,18 @@ fn format_reactions(msg: &DiscordMessage) -> StyledString {
     out
 }
 
+fn format_author(
+    cache: &InMemoryCache,
+    author: impl ShallowUser,
+    guild_id: Option<GuildId>,
+    include_at: bool,
+) -> StyledString {
+    guild_id
+        .and_then(|g_id| cache.member(g_id, author.id()))
+        .map(|member| crate::utils::color::colorize_discord_member(cache, &member, include_at))
+        .unwrap_or_else(|| author.name().into())
+}
+
 fn format_author_prefix(
     cache: &InMemoryCache,
     config: &Config,
@@ -652,16 +680,7 @@ fn format_author_prefix(
         &config.nick_prefix_color(),
     ));
 
-    let author = (|| {
-        let guild_id = msg.guild_id?;
-
-        let member = cache.member(guild_id, msg.author.id)?;
-
-        Some(crate::utils::color::colorize_discord_member(
-            cache, &member, include_at,
-        ))
-    })()
-    .unwrap_or_else(|| msg.author.name.clone().into());
+    let author = format_author(cache, &msg.author, msg.guild_id, include_at);
 
     prefix.append(author.clone());
 

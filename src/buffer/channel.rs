@@ -770,13 +770,12 @@ fn send_message(channel: &Channel, conn: &ConnectionInner, input: &str) {
                     }
                 }
             });
-            let username = cache.current_user().unwrap().name;
             channel
                 .inner
                 .borrow()
                 .buffer
                 .renderer
-                .add_msg(&WeecordMessage::new_echo(username, "".to_owned(), nonce));
+                .add_msg(&WeecordMessage::new_echo(guild_id, input, nonce));
         },
     };
 }
