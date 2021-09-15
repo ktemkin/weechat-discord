@@ -11,6 +11,8 @@ jobs:
       fail-fast: false
 
     steps:
+      - uses: actions/checkout@v2
+
       - name: Install Linux packages
         if: runner.os == 'Linux'
         run: |
@@ -28,21 +30,15 @@ jobs:
           brew install gnu-tar
           echo "/usr/local/opt/gnu-tar/libexec/gnubin" >> $GITHUB_PATH
 
-      - name: Display Rust and Cargo versions
-        run: |
-          rustc -Vv
-          cargo -V
-
-      - uses: actions/checkout@v2
-
-      - name: Cache cargo build
-        uses: actions/cache@v2
+      - name: Install stable toolchain
+        id: toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: Swatinem/rust-cache@v1
 
       - name: Run tests
         run: cargo xtask tests
@@ -69,6 +65,7 @@ jobs:
         with:
           name: weechat-discord-macos
           path: target/release/libweecord.*
+
   format:
     runs-on: ubuntu-latest
     steps:
