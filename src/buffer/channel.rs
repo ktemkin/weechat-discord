@@ -49,8 +49,8 @@ impl ChannelBuffer {
         config: &Config,
         instance: &Instance,
     ) -> anyhow::Result<Self> {
-        let clean_guild_name = crate::utils::clean_name(&guild_name);
-        let clean_channel_name = crate::utils::clean_name(&name);
+        let clean_guild_name = crate::utils::clean_name(guild_name);
+        let clean_channel_name = crate::utils::clean_name(name);
         let buffer_name = format!("discord.{}.{}", clean_guild_name, clean_channel_name);
 
         let weechat = unsafe { Weechat::weechat() };
@@ -190,7 +190,7 @@ impl ChannelBuffer {
 
         let handle = Rc::new(handle);
         Ok(Self {
-            renderer: WeecordRenderer::new(&conn, Rc::clone(&handle), config),
+            renderer: WeecordRenderer::new(conn, Rc::clone(&handle), config),
             nicklist: Nicklist::new(conn, None, handle),
         })
     }
@@ -355,7 +355,7 @@ impl Channel {
     ) -> anyhow::Result<Self> {
         let nick = format!(
             "@{}",
-            crate::twilight_utils::current_user_nick(&guild, &conn.cache).build()
+            crate::twilight_utils::current_user_nick(guild, &conn.cache).build()
         );
         let channel_name = config
             .guilds()
@@ -392,7 +392,7 @@ impl Channel {
         config: &Config,
         instance: &Instance,
     ) -> anyhow::Result<Self> {
-        let channel_buffer = ChannelBuffer::private(&channel, conn, config, instance)?;
+        let channel_buffer = ChannelBuffer::private(channel, conn, config, instance)?;
         let inner = Rc::new(RefCell::new(ChannelInner::new(
             conn.clone(),
             channel_buffer,
@@ -576,7 +576,7 @@ fn send_message(channel: &Channel, conn: &ConnectionInner, input: &str) {
     let conn = conn.clone();
     let cache = conn.cache.clone();
     let http = conn.http.clone();
-    let input = crate::twilight_utils::content::create_mentions(&cache, guild_id, &input);
+    let input = crate::twilight_utils::content::create_mentions(&cache, guild_id, input);
     match parsing::LineEdit::parse(&input) {
         Some(LineEdit::Sub {
             line,
@@ -803,9 +803,7 @@ fn has_manage_message_perm(channel: &Channel, cache: &InMemoryCache) -> Option<b
         cache.dynamic_channel(channel.id),
         Some(DynamicChannel::Guild(channel)) => channel,
     )
-    .and_then(|discord_channel| {
-        discord_channel.has_permission(&cache, Permissions::MANAGE_MESSAGES)
-    })
+    .and_then(|discord_channel| discord_channel.has_permission(cache, Permissions::MANAGE_MESSAGES))
 }
 
 fn request_from_reaction<'a>(reaction: &'a parsing::Reaction) -> Option<RequestReactionType<'a>> {

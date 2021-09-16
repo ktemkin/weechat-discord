@@ -19,7 +19,7 @@ impl PinsBuffer {
         conn: &ConnectionInner,
         config: &Config,
     ) -> anyhow::Result<Self> {
-        let clean_buffer_name = crate::utils::clean_name(&name);
+        let clean_buffer_name = crate::utils::clean_name(name);
         let buffer_name = format!("discord.pins.{}", clean_buffer_name);
 
         let weechat = unsafe { Weechat::weechat() };

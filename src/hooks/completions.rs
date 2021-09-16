@@ -77,7 +77,7 @@ impl Completions {
                                         if !channel.is_text_channel(&cache) {
                                             continue;
                                         }
-                                        completion.add(&utils::clean_name(&channel.name()));
+                                        completion.add(&utils::clean_name(channel.name()));
                                     },
                                     None => {
                                         tracing::trace!(id = %channel_id, "Unable to find channel in cache");

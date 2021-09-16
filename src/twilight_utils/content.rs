@@ -18,7 +18,7 @@ pub fn create_channels(cache: &InMemoryCache, guild_id: Option<GuildId>, input: 
 
     let mut out = String::from(input);
 
-    let matches = CHANNEL_MENTION.captures_iter(&input).collect::<Vec<_>>();
+    let matches = CHANNEL_MENTION.captures_iter(input).collect::<Vec<_>>();
     for channel_match in matches {
         let channel_name = channel_match
             .get(1)

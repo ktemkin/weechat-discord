@@ -100,7 +100,7 @@ impl WeechatMessage<MessageId, State> for WeecordMessage {
                 guild_id, content, ..
             } => {
                 let content = crate::utils::discord_to_weechat(
-                    &content,
+                    content,
                     &state.conn.cache,
                     *guild_id,
                     state.config.show_formatting_chars(),
@@ -350,7 +350,7 @@ impl WeecordRenderer {
 
     #[cfg(feature = "images")]
     fn load_images(&self, msg: &DiscordMessage) {
-        for candidate in find_image_candidates(&msg) {
+        for candidate in find_image_candidates(msg) {
             let renderer = self.inner.clone();
             let rt = self.conn.rt.clone();
             let msg_id = msg.id;
@@ -417,7 +417,7 @@ impl WeecordRenderer {
         }
 
         #[cfg(feature = "images")]
-        self.load_images(&msg);
+        self.load_images(msg);
 
         self.inner.state().borrow_mut().unknown_members.clear();
 
@@ -535,11 +535,11 @@ fn render_msg(
         msg_content.push_str(&attachment.proxy_url);
     }
 
-    msg_content.append(format_embeds(&msg, !msg_content.is_empty()));
+    msg_content.append(format_embeds(msg, !msg_content.is_empty()));
 
-    msg_content.append(format_reactions(&msg));
+    msg_content.append(format_reactions(msg));
 
-    let (prefix, author) = format_author_prefix(cache, &config, msg, include_at);
+    let (prefix, author) = format_author_prefix(cache, config, msg, include_at);
 
     let prefix = prefix.build();
     let msg_content = msg_content.build();
@@ -721,35 +721,35 @@ fn format_event_message(msg: &DiscordMessage, author: &str) -> (String, String) 
     let (prefix, body) = match msg.kind {
         RecipientAdd | GuildMemberJoin => (
             weechat::Prefix::Join,
-            format_join_message(msg, &bold(&author)),
+            format_join_message(msg, &bold(author)),
         ),
         RecipientRemove => (
             weechat::Prefix::Quit,
-            format!("{} left the group.", bold(&author)),
+            format!("{} left the group.", bold(author)),
         ),
         ChannelNameChange => (
             weechat::Prefix::Network,
             format!(
                 "{} changed the channel name to {}.",
-                bold(&author),
+                bold(author),
                 bold(&msg.content)
             ),
         ),
         Call => (
             weechat::Prefix::Network,
-            format!("{} started a call.", bold(&author)),
+            format!("{} started a call.", bold(author)),
         ),
         ChannelIconChange => (
             weechat::Prefix::Network,
-            format!("{} changed the channel icon.", bold(&author)),
+            format!("{} changed the channel icon.", bold(author)),
         ),
         ChannelMessagePinned => (
             weechat::Prefix::Network,
-            format!("{} pinned a message to this channel", bold(&author)),
+            format!("{} pinned a message to this channel", bold(author)),
         ),
         UserPremiumSub => (
             weechat::Prefix::Network,
-            format!("{} boosted this channel with nitro", bold(&author)),
+            format!("{} boosted this channel with nitro", bold(author)),
         ),
         UserPremiumSubTier1 => (
             weechat::Prefix::Network,

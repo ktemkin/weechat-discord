@@ -24,7 +24,7 @@ pub struct GuildBuffer(BufferHandle);
 
 impl GuildBuffer {
     pub fn new(name: &str, id: GuildId, instance: Instance) -> anyhow::Result<Self> {
-        let clean_guild_name = crate::utils::clean_name(&name);
+        let clean_guild_name = crate::utils::clean_name(name);
         let buffer_name = format!("discord.{}", clean_guild_name);
 
         let weechat = unsafe { Weechat::weechat() };
@@ -66,7 +66,7 @@ impl GuildBuffer {
             .upgrade()
             .map_err(|_| anyhow::anyhow!("Unable to create guild buffer"))?;
 
-        buffer.set_short_name(&name);
+        buffer.set_short_name(name);
         buffer.set_localvar("type", "server");
         buffer.set_localvar("server", &clean_guild_name);
         buffer.set_localvar("guild_id", &id.0.to_string());
@@ -165,7 +165,7 @@ impl Guild {
             instance.clone(),
             conn.clone(),
             guild_config.clone(),
-            &config,
+            config,
         ) {
             Ok(guild) => {
                 if guild_config.autoconnect() {
@@ -258,7 +258,7 @@ impl Guild {
         let channel_id = channel.id();
         let last_message_id = channel.last_message_id();
         let channel = crate::buffer::channel::Channel::guild(
-            &channel,
+            channel,
             &inner.guild,
             &inner.conn,
             &self.config,

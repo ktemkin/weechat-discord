@@ -552,8 +552,7 @@ impl DiscordConnection {
     ) -> anyhow::Result<Channel> {
         let last_message_id = channel.last_message_id();
         let channel_id = channel.id;
-        let channel =
-            crate::buffer::channel::Channel::private(&channel, &conn, &config, &instance)?;
+        let channel = crate::buffer::channel::Channel::private(channel, conn, config, instance)?;
 
         if let Some(read_state) = conn.cache.read_state(channel_id) {
             if last_message_id > Some(read_state.last_message_id) {

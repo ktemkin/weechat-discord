@@ -121,14 +121,14 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
             out
         },
         Text(string) => {
-            out.push_str(&string);
+            out.push_str(string);
             out
         },
         InlineCode(string) => {
             out.push_style(Style::color("8"))
                 .push_style(Style::Bold)
                 .if_do(show_fmt, |s| s.push_str("`"))
-                .push_str(&string)
+                .push_str(string)
                 .if_do(show_fmt, |s| s.push_str("`"))
                 .pop_style(Style::Bold)
                 .pop_style(Style::color("8"));
@@ -139,6 +139,7 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
             #[cfg(feature = "syntax_highlighting")]
             let text = syntax::format_code(text, language);
 
+            #[allow(clippy::needless_borrow)]
             out.push_style(Style::Reset)
                 .if_do(show_fmt, |s| s.push_str("```").push_str(language))
                 .push_str("\n")

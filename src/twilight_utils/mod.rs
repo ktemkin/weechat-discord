@@ -56,7 +56,7 @@ pub fn search_cached_stripped_guild_channel_name(
             if !channel.is_text_channel(cache) {
                 continue;
             }
-            if utils::clean_name(&channel.name()) == utils::clean_name(target) {
+            if utils::clean_name(channel.name()) == utils::clean_name(target) {
                 return Some(channel);
             }
         } else {
