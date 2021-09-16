@@ -55,38 +55,51 @@ impl ChannelBuffer {
 
         let weechat = unsafe { Weechat::weechat() };
 
-        if let Some(buffer) = weechat.buffer_search(crate::PLUGIN_NAME, &buffer_name) {
-            if instance.search_buffer(Some(guild_id), id).is_none() {
-                buffer.close();
-            }
-        };
+        let existing_buffer_handle =
+            if let Some(buffer) = weechat.buffer_search(crate::PLUGIN_NAME, &buffer_name) {
+                if instance.search_buffer(Some(guild_id), id).is_none() {
+                    // TODO: Can we salvage an old buffer?
+                    //       We have pointers to Instance and such in the callback,
+                    //       those won't be pointing to the right place after the plugin has been reloaded, right?
+                    //       Maybe if we make them only refer to statics, it can work?
+                    buffer.close();
+                    None
+                } else {
+                    Some(buffer.handle())
+                }
+            } else {
+                None
+            };
 
-        let handle = BufferBuilder::new(&buffer_name)
-            .input_callback({
-                let conn = conn.clone();
-                let instance = instance.clone();
-                move |_: &Weechat, _: &Buffer, input: Cow<str>| {
-                    if let Some(channel) = instance.search_buffer(Some(guild_id), id) {
-                        send_message(&channel, &conn, &input);
+        let handle = match existing_buffer_handle {
+            Some(buffer_handle) => buffer_handle,
+            None => BufferBuilder::new(&buffer_name)
+                .input_callback({
+                    let conn = conn.clone();
+                    let instance = instance.clone();
+                    move |_: &Weechat, _: &Buffer, input: Cow<str>| {
+                        if let Some(channel) = instance.search_buffer(Some(guild_id), id) {
+                            send_message(&channel, &conn, &input);
+                        }
+                        Ok(())
                     }
-                    Ok(())
-                }
-            })
-            .close_callback({
-                let name = name.to_owned();
-                let instance = instance.clone();
-                move |_: &Weechat, _: &Buffer| {
-                    tracing::trace!(buffer.id=%id, buffer.name=%name, "Buffer close");
-                    instance
-                        .borrow_channels_mut()
-                        .remove(&id)
-                        .expect("channel must be in instance")
-                        .set_closed();
-                    Ok(())
-                }
-            })
-            .build()
-            .map_err(|_| anyhow::anyhow!("Unable to create channel buffer"))?;
+                })
+                .close_callback({
+                    let name = name.to_owned();
+                    let instance = instance.clone();
+                    move |_: &Weechat, _: &Buffer| {
+                        tracing::trace!(buffer.id=%id, buffer.name=%name, "Buffer close");
+                        instance
+                            .borrow_channels_mut()
+                            .remove(&id)
+                            .expect("channel must be in instance")
+                            .set_closed();
+                        Ok(())
+                    }
+                })
+                .build()
+                .map_err(|_| anyhow::anyhow!("Unable to create channel buffer"))?,
+        };
 
         let buffer = handle
             .upgrade()

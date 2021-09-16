@@ -29,28 +29,38 @@ impl GuildBuffer {
 
         let weechat = unsafe { Weechat::weechat() };
 
-        if let Some(buffer) = weechat.buffer_search(crate::PLUGIN_NAME, &buffer_name) {
-            if !instance.borrow_guilds().contains_key(&id) {
-                buffer.close();
-            }
-        };
-
-        let handle = BufferBuilder::new(&buffer_name)
-            .close_callback({
-                let name = name.to_owned();
-                move |_: &Weechat, _: &Buffer| {
-                    tracing::trace!(buffer.id=%id, buffer.name=%name, "Buffer close");
-                    if let Some(mut instance) = instance.try_borrow_guilds_mut() {
-                        instance
-                            .remove(&id)
-                            .expect("guild must be in instance")
-                            .set_closed();
-                    }
-                    Ok(())
+        let existing_buffer_handle =
+            if let Some(buffer) = weechat.buffer_search(crate::PLUGIN_NAME, &buffer_name) {
+                if !instance.borrow_guilds().contains_key(&id) {
+                    // TODO: Can we salvage an old buffer?  See coresponding comment in channel.rs
+                    buffer.close();
+                    None
+                } else {
+                    Some(buffer.handle())
                 }
-            })
-            .build()
-            .map_err(|_| anyhow::anyhow!("Unable to create guild buffer"))?;
+            } else {
+                None
+            };
+
+        let handle = match existing_buffer_handle {
+            Some(buffer_handle) => buffer_handle,
+            None => BufferBuilder::new(&buffer_name)
+                .close_callback({
+                    let name = name.to_owned();
+                    move |_: &Weechat, _: &Buffer| {
+                        tracing::trace!(buffer.id=%id, buffer.name=%name, "Buffer close");
+                        if let Some(mut instance) = instance.try_borrow_guilds_mut() {
+                            instance
+                                .remove(&id)
+                                .expect("guild must be in instance")
+                                .set_closed();
+                        }
+                        Ok(())
+                    }
+                })
+                .build()
+                .map_err(|_| anyhow::anyhow!("Unable to create guild buffer"))?,
+        };
 
         let buffer = handle
             .upgrade()

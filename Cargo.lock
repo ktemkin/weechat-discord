@@ -728,6 +728,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "instant"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bee0328b1209d157ef001c94dd85b4f8f64139adb0eac2659f4b08382b2f474d"
+dependencies = [
+ "cfg-if 1.0.0",
+]
+
+[[package]]
 name = "iterm2"
 version = "0.3.0"
 source = "git+https://github.com/Noskcaj19/iterm2?rev=a2a7060#a2a7060a9ff6f544e4cb0533db0c249b9b30226b"
@@ -823,6 +832,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f30344350a2a51da54c1d53be93fade8a237e545dbcc4bdbe635413f2117cab9"
 dependencies = [
  "safemem",
+]
+
+[[package]]
+name = "lock_api"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "712a4d093c9976e24e7dbca41db895dabcbac38eb5f4045393d17a95bdfb1109"
+dependencies = [
+ "scopeguard",
 ]
 
 [[package]]
@@ -1051,6 +1069,31 @@ name = "openssl-probe"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28988d872ab76095a6e6ac88d99b54fd267702734fd7ffe610ca27f533ddb95a"
+
+[[package]]
+name = "parking_lot"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
+dependencies = [
+ "instant",
+ "lock_api",
+ "parking_lot_core",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d76e8e1493bcac0d2766c42737f34458f1c8c50c0d23bcb24ea953affb273216"
+dependencies = [
+ "cfg-if 1.0.0",
+ "instant",
+ "libc",
+ "redox_syscall",
+ "smallvec",
+ "winapi",
+]
 
 [[package]]
 name = "parsing"
@@ -2219,7 +2262,7 @@ dependencies = [
 [[package]]
 name = "weechat"
 version = "0.4.0"
-source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#fc50431f4e41a595d63b428acb7a00b8da28a04d"
+source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#51239ca1b9949a9fd8149123d402600d264747cc"
 dependencies = [
  "async-task",
  "async-trait",
@@ -2250,6 +2293,7 @@ dependencies = [
  "image",
  "itertools",
  "once_cell",
+ "parking_lot",
  "parsing",
  "rand 0.8.4",
  "regex",
@@ -2275,7 +2319,7 @@ dependencies = [
 [[package]]
 name = "weechat-macro"
 version = "0.4.0"
-source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#fc50431f4e41a595d63b428acb7a00b8da28a04d"
+source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#51239ca1b9949a9fd8149123d402600d264747cc"
 dependencies = [
  "libc",
  "proc-macro2",
@@ -2286,7 +2330,7 @@ dependencies = [
 [[package]]
 name = "weechat-sys"
 version = "0.4.0"
-source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#fc50431f4e41a595d63b428acb7a00b8da28a04d"
+source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#51239ca1b9949a9fd8149123d402600d264747cc"
 dependencies = [
  "bindgen",
  "libc",
