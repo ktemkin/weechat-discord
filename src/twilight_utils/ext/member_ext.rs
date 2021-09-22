@@ -96,10 +96,13 @@ impl CachedMemberExt for CachedMember {
     }
 
     fn display_name(&self, cache: &InMemoryCache) -> Cow<str> {
-        self.nick
-            .as_ref()
-            .map(Cow::from)
-            .unwrap_or_else(|| Cow::from(self.user(cache).expect("FIX ME").name))
+        self.nick.as_ref().map(Cow::from).unwrap_or_else(|| {
+            Cow::from(
+                self.user(cache)
+                    .map(|u| u.name)
+                    .unwrap_or_else(|| String::from("<failed>")),
+            )
+        })
     }
 
     fn highest_role_info(&self, cache: &InMemoryCache) -> Option<Role> {

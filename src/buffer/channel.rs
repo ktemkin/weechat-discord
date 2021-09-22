@@ -160,11 +160,15 @@ impl ChannelBuffer {
                 let instance = instance.clone();
                 move |_: &Weechat, _: &Buffer| {
                     tracing::trace!(buffer.id=%id, buffer.name=%short_name, "Buffer close");
-                    instance
-                        .borrow_private_channels_mut()
-                        .remove(&id)
-                        .expect("private channel must be in instance")
-                        .set_closed();
+                    if let Some(channel) = instance.borrow_private_channels_mut().remove(&id) {
+                        channel.set_closed();
+                    } else {
+                        tracing::warn!(
+                            channel.id = %id,
+                            name = %short_name,
+                            "Failed to remove channel from instance"
+                        );
+                    }
                     Ok(())
                 }
             })

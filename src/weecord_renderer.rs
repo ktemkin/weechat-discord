@@ -788,6 +788,18 @@ fn format_event_message(msg: &DiscordMessage, author: &str) -> (String, String) 
         ),
         GuildInviteReminder => (weechat::Prefix::Network, "Invite reminder".to_owned()),
         ApplicationCommand | Regular | Reply => unreachable!(),
+        ThreadCreated => (
+            weechat::Prefix::Network,
+            format!("{} started a thread: {}", bold(author), bold(&msg.content)),
+        ),
+        ThreadStarterMessage => (
+            weechat::Prefix::Network,
+            "[Thread starter - Threads are not implemented]".to_owned(),
+        ),
+        ContextMenuCommand => (
+            weechat::Prefix::Network,
+            "[Context Menu Command - not yet implemented]".to_owned(),
+        ),
     };
     (Weechat::prefix(prefix), body)
 }

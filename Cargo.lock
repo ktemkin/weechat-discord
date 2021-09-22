@@ -1071,6 +1071,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28988d872ab76095a6e6ac88d99b54fd267702734fd7ffe610ca27f533ddb95a"
 
 [[package]]
+name = "ordered-float"
+version = "2.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97c9d06878b3a851e8026ef94bf7fef9ba93062cd412601da4d9cf369b1cc62d"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1585,6 +1594,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-value"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
+dependencies = [
+ "ordered-float",
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1988,8 +2007,8 @@ dependencies = [
 
 [[package]]
 name = "twilight-cache-inmemory"
-version = "0.6.0"
-source = "git+https://github.com/terminal-discord/twilight?branch=main#3e2ca261c8e6aa3061bfb9c93be64442f1c18dc6"
+version = "0.6.3"
+source = "git+https://github.com/terminal-discord/twilight?branch=main#0c81f4f930d3fa0c2cc130df2a419922bf1d5df3"
 dependencies = [
  "bitflags",
  "dashmap",
@@ -2000,8 +2019,8 @@ dependencies = [
 
 [[package]]
 name = "twilight-gateway"
-version = "0.6.0"
-source = "git+https://github.com/terminal-discord/twilight?branch=main#3e2ca261c8e6aa3061bfb9c93be64442f1c18dc6"
+version = "0.6.4"
+source = "git+https://github.com/terminal-discord/twilight?branch=main#0c81f4f930d3fa0c2cc130df2a419922bf1d5df3"
 dependencies = [
  "bitflags",
  "flate2",
@@ -2021,7 +2040,7 @@ dependencies = [
 [[package]]
 name = "twilight-gateway-queue"
 version = "0.6.0"
-source = "git+https://github.com/terminal-discord/twilight?branch=main#3e2ca261c8e6aa3061bfb9c93be64442f1c18dc6"
+source = "git+https://github.com/terminal-discord/twilight?branch=main#0c81f4f930d3fa0c2cc130df2a419922bf1d5df3"
 dependencies = [
  "tokio",
  "tracing",
@@ -2030,8 +2049,8 @@ dependencies = [
 
 [[package]]
 name = "twilight-http"
-version = "0.6.1"
-source = "git+https://github.com/terminal-discord/twilight?branch=main#3e2ca261c8e6aa3061bfb9c93be64442f1c18dc6"
+version = "0.6.5"
+source = "git+https://github.com/terminal-discord/twilight?branch=main#0c81f4f930d3fa0c2cc130df2a419922bf1d5df3"
 dependencies = [
  "hyper",
  "hyper-rustls",
@@ -2046,27 +2065,28 @@ dependencies = [
 [[package]]
 name = "twilight-mention"
 version = "0.6.0"
-source = "git+https://github.com/terminal-discord/twilight?branch=main#3e2ca261c8e6aa3061bfb9c93be64442f1c18dc6"
+source = "git+https://github.com/terminal-discord/twilight?branch=main#0c81f4f930d3fa0c2cc130df2a419922bf1d5df3"
 dependencies = [
  "twilight-model",
 ]
 
 [[package]]
 name = "twilight-model"
-version = "0.6.0"
-source = "git+https://github.com/terminal-discord/twilight?branch=main#3e2ca261c8e6aa3061bfb9c93be64442f1c18dc6"
+version = "0.6.4"
+source = "git+https://github.com/terminal-discord/twilight?branch=main#0c81f4f930d3fa0c2cc130df2a419922bf1d5df3"
 dependencies = [
  "bitflags",
  "murmur3",
  "serde",
+ "serde-value",
  "serde_repr",
  "tracing",
 ]
 
 [[package]]
 name = "twilight-util"
-version = "0.6.0"
-source = "git+https://github.com/terminal-discord/twilight?branch=main#3e2ca261c8e6aa3061bfb9c93be64442f1c18dc6"
+version = "0.6.1"
+source = "git+https://github.com/terminal-discord/twilight?branch=main#0c81f4f930d3fa0c2cc130df2a419922bf1d5df3"
 dependencies = [
  "twilight-model",
 ]

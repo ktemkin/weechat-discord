@@ -6,7 +6,7 @@ use twilight_model::{
 };
 
 pub trait GuildChannelExt {
-    fn permission_overwrites(&self) -> &[PermissionOverwrite];
+    fn permission_overwrites(&self, cache: &InMemoryCache) -> Vec<PermissionOverwrite>;
     fn topic(&self) -> Option<String>;
     fn members(&self, cache: &InMemoryCache) -> Result<Vec<CachedMember>, ()>;
     fn member_has_permission(
@@ -18,22 +18,45 @@ pub trait GuildChannelExt {
     fn has_permission(&self, cache: &InMemoryCache, permissions: Permissions) -> Option<bool>;
     fn is_text_channel(&self, cache: &InMemoryCache) -> bool;
     fn last_message_id(&self) -> Option<MessageId>;
+    fn rate_limit_per_user(&self) -> Option<u64>;
 }
 
 impl GuildChannelExt for GuildChannel {
-    fn permission_overwrites(&self) -> &[PermissionOverwrite] {
+    fn permission_overwrites(&self, cache: &InMemoryCache) -> Vec<PermissionOverwrite> {
         match self {
-            GuildChannel::Category(c) => c.permission_overwrites.as_slice(),
-            GuildChannel::Text(c) => c.permission_overwrites.as_slice(),
-            GuildChannel::Voice(c) => c.permission_overwrites.as_slice(),
-            GuildChannel::Stage(c) => c.permission_overwrites.as_slice(),
+            GuildChannel::Category(c) => c.permission_overwrites.clone(),
+            GuildChannel::Text(c) => c.permission_overwrites.clone(),
+            GuildChannel::Voice(c) => c.permission_overwrites.clone(),
+            GuildChannel::Stage(c) => c.permission_overwrites.clone(),
+            GuildChannel::NewsThread(c) => c
+                .parent_id
+                .and_then(|parent_id| {
+                    cache
+                        .guild_channel(parent_id)
+                        .map(|c| c.permission_overwrites(cache))
+                })
+                .unwrap_or_default(),
+            GuildChannel::PrivateThread(c) => c.permission_overwrites.clone(),
+            GuildChannel::PublicThread(c) => c
+                .parent_id
+                .and_then(|parent_id| {
+                    cache
+                        .guild_channel(parent_id)
+                        .map(|c| c.permission_overwrites(cache))
+                })
+                .unwrap_or_default(),
         }
     }
 
     fn topic(&self) -> Option<String> {
         match self {
             GuildChannel::Text(c) => c.topic.clone(),
-            GuildChannel::Category(_) | GuildChannel::Voice(_) | GuildChannel::Stage(_) => None,
+            GuildChannel::Category(_)
+            | GuildChannel::Voice(_)
+            | GuildChannel::Stage(_)
+            | GuildChannel::NewsThread(_)
+            | GuildChannel::PrivateThread(_)
+            | GuildChannel::PublicThread(_) => None,
         }
     }
 
@@ -55,6 +78,12 @@ impl GuildChannelExt for GuildChannel {
                     })
                     .collect())
             },
+            GuildChannel::NewsThread(_)
+            | GuildChannel::PrivateThread(_)
+            | GuildChannel::PublicThread(_) => Ok(vec![]),
+            // GuildChannel::NewsThread(_) => todo!(),
+            // GuildChannel::PrivateThread(_) => todo!(),
+            // GuildChannel::PublicThread(_) => todo!(),
         }
     }
 
@@ -83,7 +112,7 @@ impl GuildChannelExt for GuildChannel {
             everyone_role,
             &roles,
         );
-        let perms = calc.in_channel(self.kind(), self.permission_overwrites());
+        let perms = calc.in_channel(self.kind(), &self.permission_overwrites(cache));
 
         if perms.contains(permissions) {
             Some(true)
@@ -113,6 +142,10 @@ impl GuildChannelExt for GuildChannel {
             GuildChannel::Category(c) => c.kind == ChannelType::GuildText,
             GuildChannel::Text(c) => c.kind == ChannelType::GuildText,
             GuildChannel::Voice(_) | GuildChannel::Stage(_) => false,
+            // TODO: Verify if this comparison is correct
+            GuildChannel::NewsThread(c) => c.kind == ChannelType::GuildNewsThread,
+            GuildChannel::PrivateThread(c) => c.kind == ChannelType::GuildPrivateThread,
+            GuildChannel::PublicThread(c) => c.kind == ChannelType::GuildPublicThread,
         }
     }
 
@@ -120,6 +153,19 @@ impl GuildChannelExt for GuildChannel {
         match self {
             GuildChannel::Text(c) => c.last_message_id,
             GuildChannel::Category(_) | GuildChannel::Voice(_) | GuildChannel::Stage(_) => None,
+            GuildChannel::NewsThread(c) => c.last_message_id,
+            GuildChannel::PrivateThread(c) => c.last_message_id,
+            GuildChannel::PublicThread(c) => c.last_message_id,
+        }
+    }
+
+    fn rate_limit_per_user(&self) -> Option<u64> {
+        match self {
+            GuildChannel::Voice(_) | GuildChannel::Stage(_) | GuildChannel::Category(_) => None,
+            GuildChannel::NewsThread(channel) => channel.rate_limit_per_user,
+            GuildChannel::PrivateThread(channel) => channel.rate_limit_per_user,
+            GuildChannel::PublicThread(channel) => channel.rate_limit_per_user,
+            GuildChannel::Text(channel) => channel.rate_limit_per_user,
         }
     }
 }

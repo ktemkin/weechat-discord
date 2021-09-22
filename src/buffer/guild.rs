@@ -50,10 +50,15 @@ impl GuildBuffer {
                     move |_: &Weechat, _: &Buffer| {
                         tracing::trace!(buffer.id=%id, buffer.name=%name, "Buffer close");
                         if let Some(mut instance) = instance.try_borrow_guilds_mut() {
-                            instance
-                                .remove(&id)
-                                .expect("guild must be in instance")
-                                .set_closed();
+                            if let Some(guild) = instance.remove(&id) {
+                                guild.set_closed();
+                            } else {
+                                tracing::warn!(
+                                    guild.id = %id,
+                                    name = %name,
+                                    "Failed to remove guild from instance"
+                                );
+                            }
                         }
                         Ok(())
                     }

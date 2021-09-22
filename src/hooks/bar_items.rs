@@ -3,12 +3,9 @@ use crate::{
     config::Config,
     discord::{discord_connection::DiscordConnection, typing_indicator::TypingTracker},
     instance::Instance,
-    twilight_utils::ext::ChannelExt,
+    twilight_utils::ext::{guild_channel_ext::GuildChannelExt, ChannelExt},
 };
-use twilight_model::{
-    channel::GuildChannel,
-    id::{ChannelId, GuildId},
-};
+use twilight_model::id::{ChannelId, GuildId};
 use weechat::{buffer::Buffer, hooks::BarItem, Weechat};
 
 pub struct BarItems {
@@ -65,19 +62,14 @@ impl BarItems {
                     None => return "".into(),
                 };
 
-                match channel {
-                    GuildChannel::Category(_) | GuildChannel::Voice(_) | GuildChannel::Stage(_) => {
-                        "".into()
-                    },
-                    GuildChannel::Text(channel) => match channel.rate_limit_per_user {
-                        None => "".into(),
-                        Some(rate_limit) => {
-                            if rate_limit == 0 {
-                                "".into()
-                            } else {
-                                humanize_duration(rate_limit)
-                            }
-                        },
+                match channel.rate_limit_per_user() {
+                    None => "".into(),
+                    Some(rate_limit) => {
+                        if rate_limit == 0 {
+                            "".into()
+                        } else {
+                            humanize_duration(rate_limit)
+                        }
                     },
                 }
             }

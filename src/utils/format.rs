@@ -418,7 +418,9 @@ mod tests {
             premium_since: None,
             roles: vec![],
             user: User {
+                accent_color: None,
                 avatar: None,
+                banner: None,
                 bot: false,
                 discriminator: "1234".to_string(),
                 email: None,

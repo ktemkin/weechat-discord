@@ -21,10 +21,7 @@ pub fn colorize_discord_member(
     at: bool,
 ) -> StyledString {
     let color = member.color(cache);
-    let nick = member
-        .nick
-        .clone()
-        .unwrap_or_else(|| member.user(cache).expect("FIX ME").name);
+    let nick = member.display_name(cache);
 
     let nick_prefix = if at { "@" } else { "" };
     let nick = format!("{}{}", nick_prefix, nick);
@@ -35,7 +32,10 @@ pub fn colorize_discord_member(
             StyledString::from(format!(
                 "{}{}",
                 nick_prefix,
-                member.user(cache).expect("FIX ME").name
+                member
+                    .user(cache)
+                    .map(|u| u.name)
+                    .unwrap_or_else(|| String::from("<failed>"))
             ))
         })
 }

@@ -84,6 +84,9 @@ impl ChannelExt for GuildChannel {
             GuildChannel::Text(c) => c.kind,
             GuildChannel::Voice(c) => c.kind,
             GuildChannel::Stage(c) => c.kind,
+            GuildChannel::NewsThread(c) => c.kind,
+            GuildChannel::PrivateThread(c) => c.kind,
+            GuildChannel::PublicThread(c) => c.kind,
         }
     }
 
@@ -104,7 +107,7 @@ impl ChannelExt for GuildChannel {
             ))
             .expect("Every guild has an @everyone role")
             .permissions;
-        MemberListId::from_overwrites(everyone_perms, self.permission_overwrites())
+        MemberListId::from_overwrites(everyone_perms, &self.permission_overwrites(cache))
     }
 }
 

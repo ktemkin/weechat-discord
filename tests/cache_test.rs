@@ -73,7 +73,9 @@ async fn guild_members_updates() {
         premium_since: None,
         roles: vec![],
         user: User {
+            accent_color: None,
             avatar: None,
+            banner: None,
             bot: false,
             discriminator: "".to_string(),
             email: None,
@@ -159,6 +161,7 @@ fn fake_guild(guild_id: GuildId) -> Guild {
         stage_instances: vec![],
         system_channel_flags: SystemChannelFlags::from_bits(0).unwrap(),
         system_channel_id: None,
+        threads: vec![],
         unavailable: false,
         vanity_url_code: None,
         verification_level: VerificationLevel::None,
