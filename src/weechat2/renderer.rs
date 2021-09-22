@@ -195,8 +195,4 @@ impl<M: WeechatMessage<I, S> + Clone, I: Eq, S> MessageRenderer<M, I, S> {
         }
         self.redraw_buffer();
     }
-
-    pub fn remove(&self, index: usize) -> Option<M> {
-        self.messages.borrow_mut().remove(index)
-    }
 }

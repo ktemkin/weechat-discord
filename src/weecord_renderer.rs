@@ -334,17 +334,18 @@ impl WeecordRenderer {
     }
 
     fn clear_ephemeral_notifications(&self) {
-        let pos = match self
+        let notification = match self
             .inner
             .messages()
             .borrow()
             .iter()
-            .position(|msg| matches!(msg, WeecordMessage::Notification { .. }))
+            .find(|msg| matches!(msg, WeecordMessage::Notification { .. }))
+            .cloned()
         {
             Some(pos) => pos,
             _ => return,
         };
-        self.inner.remove(pos);
+        self.inner.remove_msg(&notification.id());
         self.inner.redraw_buffer();
     }
 
@@ -402,16 +403,16 @@ impl WeecordRenderer {
         self.clear_ephemeral_notifications();
 
         if let Some(incoming_nonce) = msg.nonce.as_ref().and_then(|n| n.parse::<u64>().ok()) {
-            let echo_index = self
+            let local_echo_nonce = self
                 .inner
                 .messages()
                 .borrow()
                 .iter()
                 .flat_map(|msg| match_map!(msg, WeecordMessage::LocalEcho { nonce, .. } => *nonce))
-                .position(|msg_nonce| msg_nonce == incoming_nonce);
+                .find(|msg_nonce| *msg_nonce == incoming_nonce);
 
-            if let Some(echo_index) = echo_index {
-                self.inner.remove(echo_index);
+            if let Some(local_echo_nonce) = local_echo_nonce {
+                self.inner.remove_msg(&MessageId(local_echo_nonce));
                 self.redraw_buffer(&[]);
             }
         }
