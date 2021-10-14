@@ -20,6 +20,7 @@ images = ["image", "term-image", "hyper", "hyper-rustls"]
 pcre = ["parsing/pcre"]
 onig = ["parsing/onig"]
 weecord-debug = ["accountable-refcell"]
+unlimited-logging = []
 tracing_tree = ["tracing-tree"]
 
 [dependencies.parsing]

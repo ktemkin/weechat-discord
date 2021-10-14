@@ -33,6 +33,8 @@ impl Debug {
 impl io::Write for Debug {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if !crate::SHUTTING_DOWN.triggered() {
+            #[cfg(not(feature = "unlimited-logging"))]
+            let buf = &buf[0..(buf.len().min(4500))];
             Weechat::spawn_from_thread(Debug::write_to_buffer(buf.to_owned()));
         }
 
