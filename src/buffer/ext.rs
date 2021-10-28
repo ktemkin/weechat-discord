@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use twilight_model::id::{ChannelId, GuildId};
 use weechat::buffer::Buffer;
 
@@ -7,6 +8,8 @@ pub trait BufferExt {
 
     fn history_loaded(&self) -> bool;
     fn set_history_loaded(&self);
+    fn is_weecord_buffer(&self) -> bool;
+    fn weecord_buffer_type(&self) -> Option<Cow<str>>;
 }
 
 impl BufferExt for Buffer<'_> {
@@ -28,5 +31,13 @@ impl BufferExt for Buffer<'_> {
 
     fn set_history_loaded(&self) {
         self.set_localvar("loaded_history", "true");
+    }
+
+    fn is_weecord_buffer(&self) -> bool {
+        self.plugin_name() == "weecord"
+    }
+
+    fn weecord_buffer_type(&self) -> Option<Cow<str>> {
+        self.get_localvar("weecord_type")
     }
 }

@@ -11,6 +11,7 @@ impl Debug {
         if let Ok(buffer) = BufferBuilder::new("weecord.tracing").build() {
             if let Ok(buffer) = buffer.upgrade() {
                 buffer.set_title("Tracing events for weecord");
+                buffer.set_localvar("weecord_type", "debug_logs");
                 buffer.disable_hotlist();
                 // TODO: This currently overrides the notify level if the user has changed it.
                 //       Perhaps an option needs to be added for running first time setup only once.

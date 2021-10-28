@@ -86,14 +86,8 @@ impl ChannelBuffer {
                 })
                 .close_callback({
                     let name = name.to_owned();
-                    let instance = instance.clone();
                     move |_: &Weechat, _: &Buffer| {
-                        tracing::trace!(buffer.id=%id, buffer.name=%name, "Buffer close");
-                        instance
-                            .borrow_channels_mut()
-                            .remove(&id)
-                            .expect("channel must be in instance")
-                            .set_closed();
+                        tracing::trace!(buffer.id=%id, buffer.name=%name, "Guild channel buffer close");
                         Ok(())
                     }
                 })
@@ -116,6 +110,7 @@ impl ChannelBuffer {
         buffer.set_localvar("channel", &clean_channel_name);
         buffer.set_localvar("guild_id", &guild_id.0.to_string());
         buffer.set_localvar("channel_id", &id.0.to_string());
+        buffer.set_localvar("weecord_type", "channel");
 
         buffer.enable_hotlist();
         buffer.enable_nicklist();
@@ -157,18 +152,8 @@ impl ChannelBuffer {
             })
             .close_callback({
                 let short_name = short_name.to_string();
-                let instance = instance.clone();
                 move |_: &Weechat, _: &Buffer| {
-                    tracing::trace!(buffer.id=%id, buffer.name=%short_name, "Buffer close");
-                    if let Some(channel) = instance.borrow_private_channels_mut().remove(&id) {
-                        channel.set_closed();
-                    } else {
-                        tracing::warn!(
-                            channel.id = %id,
-                            name = %short_name,
-                            "Failed to remove channel from instance"
-                        );
-                    }
+                    tracing::trace!(buffer.id=%id, buffer.name=%short_name, "Private channel buffer close");
                     Ok(())
                 }
             })

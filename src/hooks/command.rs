@@ -501,7 +501,7 @@ impl DiscordCommand {
                 ));
             };
 
-            instance
+            let _old = instance
                 .borrow_pins_mut()
                 .insert((guild_id.unwrap(), channel_id.unwrap()), pins);
         })
@@ -649,9 +649,13 @@ impl DiscordCommand {
             },
             Some(("shutdown", _)) => {
                 self.connection.shutdown();
-                self.instance.borrow_guilds_mut().clear();
-                self.instance.borrow_private_channels_mut().clear();
-                self.instance.borrow_pins_mut().clear();
+                let _guilds: Vec<_> = self.instance.borrow_guilds_mut().drain().collect();
+                let _private_channels: Vec<_> = self
+                    .instance
+                    .borrow_private_channels_mut()
+                    .drain()
+                    .collect();
+                let _pins: Vec<_> = self.instance.borrow_pins_mut().drain().collect();
             },
             _ => {},
         }

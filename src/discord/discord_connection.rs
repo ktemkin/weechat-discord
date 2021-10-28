@@ -135,7 +135,7 @@ impl DiscordConnection {
                 while let Some(event) = events.next().await {
                     cache.update(&event);
 
-                    tokio::spawn(Self::handle_gateway_event(event, tx.clone()));
+                    Self::handle_gateway_event(event, tx.clone()).await;
                 }
             });
         }
@@ -230,7 +230,7 @@ impl DiscordConnection {
             };
 
             match event {
-                PluginMessage::Connected { user } => {
+                PluginMessage::Ready { user } => {
                     Weechat::print(&format!("discord: ready as: {}", user.tag()));
                     tracing::info!("Ready as {}", user.tag());
 
@@ -570,8 +570,9 @@ impl DiscordConnection {
     // Runs on Tokio runtime
     async fn handle_gateway_event(event: GatewayEvent, tx: Sender<PluginMessage>) {
         match event {
+            GatewayEvent::GatewayReconnect => tracing::info!("Reconnect"),
             GatewayEvent::Ready(ready) => tx
-                .send(PluginMessage::Connected { user: ready.user })
+                .send(PluginMessage::Ready { user: ready.user })
                 .await
                 .ok()
                 .unwrap(),

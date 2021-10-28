@@ -138,7 +138,14 @@ impl Weecord {
 impl Drop for Weecord {
     fn drop(&mut self) {
         // Ensure all buffers are cleared
-        self.instance.borrow_guilds_mut().clear();
+        // Drain each map first so we can drop the mut map borrow so that the close handler doesn't
+        // deadlock
+        let mut pins: Vec<_> = self.instance.borrow_pins_mut().drain().collect();
+        pins.clear();
+        let mut channels: Vec<_> = self.instance.borrow_guilds_mut().drain().collect();
+        channels.clear();
+        let mut guilds: Vec<_> = self.instance.borrow_guilds_mut().drain().collect();
+        guilds.clear();
         // Prevent any further traces from being printed (causes segfaults)
         SHUTTING_DOWN.trigger();
         tracing::trace!("Plugin unloaded");

@@ -48,6 +48,7 @@ impl PinsBuffer {
             buffer.set_localvar("guild_id", &guild_id.0.to_string());
         }
         buffer.set_localvar("channel_id", &channel_id.0.to_string());
+        buffer.set_localvar("weecord_type", "pins");
 
         Ok(PinsBuffer(WeecordRenderer::new(
             conn,
@@ -151,5 +152,9 @@ impl Pins {
             .add_bulk_msgs(pins.into_iter());
 
         Ok(())
+    }
+
+    pub fn set_closed(&self) {
+        self.inner.borrow_mut().closed = true;
     }
 }

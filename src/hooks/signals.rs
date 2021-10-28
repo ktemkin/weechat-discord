@@ -6,6 +6,7 @@ use crate::{
 };
 use once_cell::sync::Lazy;
 use std::{
+    borrow::{Borrow, Cow},
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -16,6 +17,7 @@ use weechat::{
 };
 
 pub struct Signals {
+    _buffer_closing_hook: SignalHook,
     _buffer_switch_hook: SignalHook,
     _buffer_typing_hook: SignalHook,
 }
@@ -23,6 +25,71 @@ pub struct Signals {
 impl Signals {
     pub fn hook_all(connection: DiscordConnection, instance: Instance, config: Config) -> Signals {
         let inner_connection = connection.clone();
+
+        let _buffer_closing_hook = SignalHook::new("buffer_closing", {
+            let instance = instance.clone();
+            move |_: &Weechat, _: &str, data: Option<SignalData>| {
+                if let Some(SignalData::Buffer(buffer)) = data {
+                    if buffer.is_weecord_buffer() {
+                        tracing::trace!(name = %buffer.full_name(), "Buffer close");
+                        let guild_id = buffer.guild_id();
+                        let channel_id = buffer.channel_id();
+
+                        let buffer_type = buffer.weecord_buffer_type();
+                        match buffer_type.as_ref().map(Cow::borrow) {
+                            Some("guild") => {
+                                if let Some(guild_id) = guild_id {
+                                    if let Some(buf) =
+                                        instance.borrow_guilds_mut().remove(&guild_id)
+                                    {
+                                        buf.set_closed();
+                                    }
+                                } else {
+                                    tracing::warn!("guild type buffer has no guild id");
+                                }
+                            },
+                            Some("channel") => {
+                                if let Some(channel_id) = channel_id {
+                                    if let Some(buf) =
+                                        instance.borrow_channels_mut().remove(&channel_id)
+                                    {
+                                        buf.set_closed();
+                                    }
+                                } else {
+                                    tracing::warn!("channel type buffer has no channel id");
+                                }
+                            },
+                            Some("pins") => {
+                                let guild_id = match guild_id {
+                                    Some(guild_id) => guild_id,
+                                    None => {
+                                        tracing::warn!("pins type buffer has no guild id");
+                                        return ReturnCode::Ok;
+                                    },
+                                };
+                                let channel_id = match channel_id {
+                                    Some(channel_id) => channel_id,
+                                    None => {
+                                        tracing::warn!("pins type buffer has no channel id");
+                                        return ReturnCode::Ok;
+                                    },
+                                };
+
+                                if let Some(buf) =
+                                    instance.borrow_pins_mut().remove(&(guild_id, channel_id))
+                                {
+                                    buf.set_closed();
+                                }
+                            },
+                            _ => {},
+                        };
+                    }
+                }
+                ReturnCode::Ok
+            }
+        })
+        .expect("Unable to hook buffer_closed signal");
+
         let _buffer_switch_hook = SignalHook::new("buffer_switch", {
             move |_: &Weechat, _: &str, data: Option<SignalData>| {
                 if let Some(SignalData::Buffer(buffer)) = data {
@@ -155,6 +222,7 @@ impl Signals {
         .expect("Unable to hook input_text_changed signal");
 
         Signals {
+            _buffer_closing_hook,
             _buffer_switch_hook,
             _buffer_typing_hook,
         }

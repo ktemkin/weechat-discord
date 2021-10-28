@@ -36,6 +36,7 @@ impl Instance {
         self.guilds.read()
     }
 
+    #[allow(dead_code)]
     pub fn try_borrow_guilds_mut(
         &self,
     ) -> Option<RwLockWriteGuard<'_, RawRwLock, HashMap<GuildId, Guild>>> {

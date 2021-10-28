@@ -8,7 +8,7 @@ use twilight_model::{
 };
 
 pub enum PluginMessage {
-    Connected { user: CurrentUser },
+    Ready { user: CurrentUser },
     MessageCreate { message: Box<Message> },
     MessageDelete { event: MessageDelete },
     MessageUpdate { message: Box<MessageUpdate> },
