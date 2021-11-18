@@ -8,7 +8,6 @@ use crate::{
 };
 use anyhow::Result;
 use futures::StreamExt;
-use once_cell::sync::Lazy;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
     runtime::Runtime,
@@ -33,6 +32,8 @@ pub struct ConnectionInner {
     pub rt: Arc<Runtime>,
     pub cache: InMemoryCache,
     pub http: HttpClient,
+    /// All channels we have requested events for
+    subscriptions: Arc<TokioMutex<HashMap<GuildId, Vec<ChannelId>>>>,
 }
 
 #[derive(Clone)]
@@ -149,6 +150,7 @@ impl DiscordConnection {
             rt: runtime,
             cache,
             http,
+            subscriptions: Arc::new(TokioMutex::new(HashMap::new())),
         };
 
         self.0.borrow_mut().replace(meta.clone());
@@ -162,13 +164,11 @@ impl DiscordConnection {
         }
     }
 
+    /// Add provided channel to the event subscription list (opcode 14, lazy guilds)
     pub async fn send_guild_subscription(&self, guild_id: GuildId, channel_id: ChannelId) {
         let inner = self.0.borrow().as_ref().cloned();
         if let Some(inner) = inner {
-            static CHANNELS: Lazy<TokioMutex<HashMap<GuildId, Vec<ChannelId>>>> =
-                Lazy::new(|| TokioMutex::new(HashMap::new()));
-
-            let mut subscriptions = CHANNELS.lock().await;
+            let mut subscriptions = inner.subscriptions.lock().await;
 
             let subscribed_channels = subscriptions.entry(guild_id).or_default();
             let send = !subscribed_channels.contains(&channel_id);
