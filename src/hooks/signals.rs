@@ -60,13 +60,6 @@ impl Signals {
                                 }
                             },
                             Some("pins") => {
-                                let guild_id = match guild_id {
-                                    Some(guild_id) => guild_id,
-                                    None => {
-                                        tracing::warn!("pins type buffer has no guild id");
-                                        return ReturnCode::Ok;
-                                    },
-                                };
                                 let channel_id = match channel_id {
                                     Some(channel_id) => channel_id,
                                     None => {

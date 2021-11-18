@@ -503,7 +503,7 @@ impl DiscordCommand {
 
             let _old = instance
                 .borrow_pins_mut()
-                .insert((guild_id.unwrap(), channel_id.unwrap()), pins);
+                .insert((guild_id, channel_id.unwrap()), pins);
         })
         .detach();
     }

@@ -15,7 +15,7 @@ pub struct Instance {
     guilds: Rc<RwLock<HashMap<GuildId, Guild>>>,
     channels: Rc<RwLock<HashMap<ChannelId, Channel>>>,
     private_channels: Rc<RwLock<HashMap<ChannelId, Channel>>>,
-    pins: Rc<RwLock<HashMap<(GuildId, ChannelId), Pins>>>,
+    pins: Rc<RwLock<HashMap<(Option<GuildId>, ChannelId), Pins>>>,
     typing_tracker: Rc<RwLock<TypingTracker>>,
     member_lists: Rc<RwLock<HashMap<GuildId, MemberList>>>,
 }
@@ -71,7 +71,7 @@ impl Instance {
 
     pub fn borrow_pins_mut(
         &self,
-    ) -> RwLockWriteGuard<'_, RawRwLock, HashMap<(GuildId, ChannelId), Pins>> {
+    ) -> RwLockWriteGuard<'_, RawRwLock, HashMap<(Option<GuildId>, ChannelId), Pins>> {
         self.pins.write()
     }
 
