@@ -136,7 +136,12 @@ impl DiscordConnection {
                 while let Some(event) = events.next().await {
                     cache.update(&event);
 
-                    Self::handle_gateway_event(event, tx.clone()).await;
+                    if let Err(e) = Self::handle_gateway_event(event, tx.clone()).await {
+                        tracing::error!("Event loop failed: {}", e);
+                        Weechat::spawn_from_thread(async {
+                            Weechat::print("discord: event loop failed, stopping...");
+                        });
+                    }
                 }
             });
         }
@@ -568,26 +573,25 @@ impl DiscordConnection {
     }
 
     // Runs on Tokio runtime
-    async fn handle_gateway_event(event: GatewayEvent, tx: Sender<PluginMessage>) {
+    async fn handle_gateway_event(
+        event: GatewayEvent,
+        tx: Sender<PluginMessage>,
+    ) -> Result<(), tokio::sync::mpsc::error::SendError<PluginMessage>> {
         match event {
-            GatewayEvent::GatewayReconnect => tracing::info!("Reconnect"),
-            GatewayEvent::Ready(ready) => tx
-                .send(PluginMessage::Ready { user: ready.user })
-                .await
-                .ok()
-                .unwrap(),
-            GatewayEvent::MessageCreate(message) => tx
-                .send(PluginMessage::MessageCreate {
+            GatewayEvent::GatewayReconnect => {
+                tracing::info!("Reconnect");
+                Ok(())
+            },
+            GatewayEvent::Ready(ready) => tx.send(PluginMessage::Ready { user: ready.user }).await,
+            GatewayEvent::MessageCreate(message) => {
+                tx.send(PluginMessage::MessageCreate {
                     message: Box::new(message.0),
                 })
                 .await
-                .ok()
-                .expect("Receiving thread has died"),
-            GatewayEvent::MessageDelete(event) => tx
-                .send(PluginMessage::MessageDelete { event })
-                .await
-                .ok()
-                .expect("Receiving thread has died"),
+            },
+            GatewayEvent::MessageDelete(event) => {
+                tx.send(PluginMessage::MessageDelete { event }).await
+            },
             GatewayEvent::MessageDeleteBulk(event) => {
                 for id in event.ids {
                     tx.send(PluginMessage::MessageDelete {
@@ -597,47 +601,33 @@ impl DiscordConnection {
                             id,
                         },
                     })
-                    .await
-                    .ok()
-                    .expect("Receiving thread has died");
+                    .await?;
                 }
+                Ok(())
             },
-            GatewayEvent::MessageUpdate(message) => tx
-                .send(PluginMessage::MessageUpdate { message })
-                .await
-                .ok()
-                .expect("Receiving thread has died"),
-            GatewayEvent::MemberChunk(member_chunk) => tx
-                .send(PluginMessage::MemberChunk(member_chunk))
-                .await
-                .ok()
-                .expect("Receiving thread has died"),
-            GatewayEvent::TypingStart(typing_start) => tx
-                .send(PluginMessage::TypingStart(*typing_start))
-                .await
-                .ok()
-                .expect("Receiving thread has died"),
-            GatewayEvent::ChannelUpdate(channel_update) => tx
-                .send(PluginMessage::ChannelUpdate(channel_update))
-                .await
-                .ok()
-                .expect("Receiving thread has died"),
-            GatewayEvent::ReactionAdd(reaction_add) => tx
-                .send(PluginMessage::ReactionAdd(reaction_add))
-                .await
-                .ok()
-                .expect("Receiving thread has died"),
-            GatewayEvent::MemberListUpdate(update) => tx
-                .send(PluginMessage::MemberListUpdate(update))
-                .await
-                .ok()
-                .expect("Receiving thread has died"),
-            GatewayEvent::ReactionRemove(reaction_remove) => tx
-                .send(PluginMessage::ReactionRemove(reaction_remove))
-                .await
-                .ok()
-                .expect("Receiving thread has died"),
-            _ => {},
+            GatewayEvent::MessageUpdate(message) => {
+                tx.send(PluginMessage::MessageUpdate { message }).await
+            },
+            GatewayEvent::MemberChunk(member_chunk) => {
+                tx.send(PluginMessage::MemberChunk(member_chunk)).await
+            },
+            GatewayEvent::TypingStart(typing_start) => {
+                tx.send(PluginMessage::TypingStart(*typing_start)).await
+            },
+            GatewayEvent::ChannelUpdate(channel_update) => {
+                tx.send(PluginMessage::ChannelUpdate(channel_update)).await
+            },
+            GatewayEvent::ReactionAdd(reaction_add) => {
+                tx.send(PluginMessage::ReactionAdd(reaction_add)).await
+            },
+            GatewayEvent::MemberListUpdate(update) => {
+                tx.send(PluginMessage::MemberListUpdate(update)).await
+            },
+            GatewayEvent::ReactionRemove(reaction_remove) => {
+                tx.send(PluginMessage::ReactionRemove(reaction_remove))
+                    .await
+            },
+            _ => Ok(()),
         }
     }
 }
