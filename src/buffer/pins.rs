@@ -149,7 +149,7 @@ impl Pins {
             .as_ref()
             .expect("guaranteed to exist")
             .0
-            .add_bulk_msgs(pins.into_iter());
+            .add_bulk_msgs(pins.into_iter().rev());
 
         Ok(())
     }
