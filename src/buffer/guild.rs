@@ -135,7 +135,7 @@ impl Guild {
         guild_config: GuildConfig,
         config: &Config,
     ) -> anyhow::Result<Guild> {
-        let buffer = GuildBuffer::new(&guild.name, guild.id, instance.clone())?;
+        let buffer = GuildBuffer::new(guild.name(), guild.id(), instance.clone())?;
         let inner = Rc::new(RefCell::new(GuildInner::new(
             conn,
             instance,
@@ -143,7 +143,7 @@ impl Guild {
             guild.clone(),
         )));
         let guild = Guild {
-            id: guild.id,
+            id: guild.id(),
             guild,
             inner,
             guild_config,
@@ -157,7 +157,7 @@ impl Guild {
 
         if inner.closed || inner.buffer.0.upgrade().is_err() {
             if let Ok(buffer) =
-                GuildBuffer::new(&self.guild.name, self.guild.id, inner.instance.clone())
+                GuildBuffer::new(self.guild.name(), self.guild.id(), inner.instance.clone())
             {
                 inner.closed = false;
                 inner.buffer = buffer;
@@ -167,7 +167,7 @@ impl Guild {
 
     /// Tries to create a Guild and insert it into the instance, logging errors
     pub fn try_create(
-        twilight_guild: TwilightGuild,
+        twilight_guild: &TwilightGuild,
         instance: &Instance,
         conn: &ConnectionInner,
         guild_config: GuildConfig,
@@ -175,7 +175,7 @@ impl Guild {
     ) {
         let maybe_guild = instance
             .borrow_guilds_mut()
-            .get(&twilight_guild.id)
+            .get(&twilight_guild.id())
             .cloned();
         match maybe_guild {
             Some(guild) => {
@@ -197,8 +197,8 @@ impl Guild {
                     },
                     Err(e) => {
                         tracing::error!(
-                            guild.id=%twilight_guild.id,
-                            guild.name=%twilight_guild.name,
+                            guild.id=%twilight_guild.id(),
+                            guild.name=%twilight_guild.name(),
                             "Unable to connect guild: {}", e
                         );
                     },
@@ -212,7 +212,7 @@ impl Guild {
             tracing::warn!("Unable to connect guild: {}", e);
             Weechat::print(&format!(
                 "discord: Unable to connect to {}",
-                self.inner.borrow().guild.name
+                self.inner.borrow().guild.name()
             ));
         };
     }
@@ -225,8 +225,8 @@ impl Guild {
 
         if self.config.join_all() {
             if let Some(guild_channels) = conn.cache.guild_channels(self.id) {
-                for channel_id in guild_channels {
-                    if let Some(cached_channel) = conn.cache.guild_channel(channel_id) {
+                for channel_id in guild_channels.iter() {
+                    if let Some(cached_channel) = conn.cache.guild_channel(*channel_id) {
                         if cached_channel.is_text_channel(&conn.cache) {
                             tracing::info!(
                                 "Joining discord mode channel: #{}",

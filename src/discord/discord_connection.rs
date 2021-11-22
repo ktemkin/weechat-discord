@@ -18,7 +18,10 @@ use tokio::{
     },
 };
 use twilight_cache_inmemory::InMemoryCache;
-use twilight_gateway::{shard::ShardStartErrorType, Event as GatewayEvent, Intents, Shard};
+use twilight_gateway::{
+    shard::{ShardBuilder, ShardStartErrorType},
+    Event as GatewayEvent, Intents, Shard,
+};
 use twilight_http::{error::ErrorType as HttpErrorType, Client as HttpClient};
 use twilight_model::{
     channel::PrivateChannel,
@@ -28,10 +31,10 @@ use weechat::Weechat;
 
 #[derive(Clone, Debug)]
 pub struct ConnectionInner {
-    pub shard: Shard,
+    pub shard: Arc<Shard>,
     pub rt: Arc<Runtime>,
-    pub cache: InMemoryCache,
-    pub http: HttpClient,
+    pub cache: Arc<InMemoryCache>,
+    pub http: Arc<HttpClient>,
     /// All channels we have requested events for
     subscriptions: Arc<TokioMutex<HashMap<GuildId, Vec<ChannelId>>>>,
 }
@@ -56,7 +59,11 @@ impl DiscordConnection {
             let tx = tx.clone();
             let rt = runtime.clone();
             runtime.spawn(async move {
-                let (shard, mut events) = Shard::new(&token, Intents::all());
+                let http = Arc::new(HttpClient::new(token.to_owned()));
+                let (shard, mut events) = ShardBuilder::new(&token, Intents::all())
+                    .http_client(http.clone())
+                    .build();
+                let shard = Arc::new(shard);
                 if let Err(e) = shard.start().await {
                     let err_msg = format!("An error occurred connecting to Discord: {}", e);
                     Weechat::spawn_from_thread(async move {
@@ -84,8 +91,6 @@ impl DiscordConnection {
                     }
                     return;
                 };
-
-                let shard = shard;
 
                 rt.spawn({
                     let shard = shard.clone();
@@ -120,16 +125,15 @@ impl DiscordConnection {
                     }
                 });
 
-                let cache = InMemoryCache::new();
+                let cache = Arc::new(InMemoryCache::new());
 
                 tracing::info!("Connected to Discord, waiting for Ready...");
                 Weechat::spawn_from_thread(async {
                     Weechat::print("discord: connected, waiting for ready...");
                 });
 
-                let http = shard.config().http_client();
                 cache_tx
-                    .send((shard.clone(), cache.clone(), http.clone()))
+                    .send((shard, cache.clone(), http))
                     .map_err(|_| ())
                     .expect("Cache receiver closed before data could be sent");
 
@@ -208,7 +212,9 @@ impl DiscordConnection {
                 };
                 if let Err(e) = inner
                     .shard
-                    .command(&super::custom_commands::GuildSubscription { d: info, op: 14 })
+                    .send(
+                        super::custom_commands::GuildSubscription { d: info, op: 14 }.as_message(),
+                    )
                     .await
                 {
                     tracing::warn!(guild.id=?guild_id, channel.id=?channel_id, "Unable to send guild subscription (14): {}", e);
@@ -241,11 +247,13 @@ impl DiscordConnection {
 
                     let guilds: Vec<_> = if config.join_all() {
                         conn.cache
+                            .iter()
                             .guilds()
-                            .expect("Cache always returns some")
-                            .into_iter()
-                            .map(|guild_id| {
-                                (guild_id, GuildConfig::new_autoconnect_detached(guild_id))
+                            .map(|guild| {
+                                (
+                                    *guild.key(),
+                                    GuildConfig::new_autoconnect_detached(*guild.key()),
+                                )
                             })
                             .collect()
                     } else {
@@ -255,7 +263,7 @@ impl DiscordConnection {
                     for (guild_id, guild_config) in guilds {
                         if let Some(twilight_guild) = conn.cache.guild(guild_id) {
                             Guild::try_create(
-                                twilight_guild,
+                                &twilight_guild,
                                 &instance,
                                 conn,
                                 guild_config,
@@ -431,7 +439,7 @@ impl DiscordConnection {
                     if let Some(name) = typing
                         .member
                         .map(|m| m.display_name().to_owned())
-                        .or_else(|| conn.cache.user(typing_user_id).map(|u| u.name))
+                        .or_else(|| conn.cache.user(typing_user_id).map(|u| u.name.clone()))
                     {
                         instance.borrow_typing_tracker_mut().add(TypingEntry {
                             channel_id: typing.channel_id,
@@ -595,7 +603,7 @@ impl DiscordConnection {
             GatewayEvent::MessageDeleteBulk(event) => {
                 for id in event.ids {
                     tx.send(PluginMessage::MessageDelete {
-                        event: twilight_model::gateway::payload::MessageDelete {
+                        event: twilight_model::gateway::payload::incoming::MessageDelete {
                             channel_id: event.channel_id,
                             guild_id: event.guild_id,
                             id,

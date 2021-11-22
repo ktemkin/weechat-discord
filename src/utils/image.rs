@@ -45,8 +45,14 @@ pub async fn fetch_inline_image(rt: &Runtime, url: &str) -> anyhow::Result<Dynam
     rt.spawn(async move {
         tracing::trace!("Fetching inline image at: {}", url);
 
-        let client = hyper::Client::builder()
-            .build::<_, hyper::Body>(hyper_rustls::HttpsConnector::with_native_roots());
+        let client = hyper::Client::builder().build::<_, hyper::Body>(
+            hyper_rustls::HttpsConnectorBuilder::new()
+                .with_native_roots()
+                .https_only()
+                .enable_http1()
+                .enable_http2()
+                .build(),
+        );
 
         let uri = url.parse().expect("Discord sent an invalid uri");
         let response = client

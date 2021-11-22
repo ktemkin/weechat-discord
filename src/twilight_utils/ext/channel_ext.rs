@@ -5,7 +5,7 @@ use crate::twilight_utils::{
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::{
     channel::{ChannelType, Group, GuildChannel, PrivateChannel},
-    gateway::payload::MemberListId,
+    gateway::payload::incoming::MemberListId,
     guild::Permissions,
     id::{ChannelId, MessageId, RoleId},
 };

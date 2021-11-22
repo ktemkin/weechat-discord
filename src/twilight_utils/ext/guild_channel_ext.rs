@@ -64,14 +64,19 @@ impl GuildChannelExt for GuildChannel {
         match self {
             GuildChannel::Category(_) | GuildChannel::Voice(_) | GuildChannel::Stage(_) => Err(()),
             GuildChannel::Text(channel) => {
-                let members = cache.members(channel.guild_id.ok_or(())?).ok_or(())?;
+                let guild_id = channel.guild_id.ok_or(())?;
+                let members = cache
+                    .iter()
+                    .members()
+                    .filter(|m| m.key().0 == guild_id)
+                    .map(|m| m.value().clone());
 
                 Ok(members
                     .into_iter()
                     .filter(|member| {
                         self.member_has_permission(
                             cache,
-                            member.user_id,
+                            member.user_id(),
                             Permissions::READ_MESSAGE_HISTORY,
                         )
                         .unwrap_or(false)
@@ -97,7 +102,7 @@ impl GuildChannelExt for GuildChannel {
         let member = cache.member(guild_id, member_id)?;
 
         let roles: Vec<_> = member
-            .roles
+            .roles()
             .iter()
             .chain(Some(&RoleId(guild_id.0)))
             .flat_map(|&role_id| cache.role(role_id))

@@ -35,10 +35,10 @@ impl Completions {
 
                 if let Some(connection) = connection_clone.borrow().as_ref() {
                     let cache = connection.cache.clone();
-                    let guilds = cache.guilds().expect("guilds never fails");
+                    let guilds = cache.iter().guilds();
                     for guild_id in guilds {
-                        if let Some(guild) = cache.guild(guild_id) {
-                            completion.add(&utils::clean_name(&guild.name));
+                        if let Some(guild) = cache.guild(*guild_id.key()) {
+                            completion.add(&utils::clean_name(guild.name()));
                         }
                     }
                 }
@@ -70,9 +70,9 @@ impl Completions {
 
                 match crate::twilight_utils::search_cached_striped_guild_name(&cache, &guild_name) {
                     Some(guild) => {
-                        if let Some(channels) = cache.guild_channels(guild.id) {
-                            for channel_id in channels {
-                                match cache.guild_channel(channel_id) {
+                        if let Some(channels) = cache.guild_channels(guild.id()) {
+                            for channel_id in channels.iter() {
+                                match cache.guild_channel(*channel_id) {
                                     Some(channel) => {
                                         if !channel.is_text_channel(&cache) {
                                             continue;
@@ -101,7 +101,7 @@ impl Completions {
             "Completion for Discord private channels",
             move |_: &Weechat, _: &Buffer, _: Cow<str>, completion: &Completion| {
                 if let Some(connection) = connection_clone.borrow().as_ref() {
-                    for channel in &connection.cache.private_channels().expect("is always Some") {
+                    for channel in connection.cache.iter().private_channels() {
                         completion.add(
                             &channel
                                 .recipients

@@ -1,7 +1,8 @@
-use crate::twilight_utils::{ext::CachedMemberExt, Mentionable};
+use crate::twilight_utils::ext::CachedMemberExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use twilight_cache_inmemory::InMemoryCache;
+use twilight_mention::Mention;
 use twilight_model::id::GuildId;
 
 pub fn create_mentions(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &str) -> String {
@@ -27,15 +28,15 @@ pub fn create_channels(cache: &InMemoryCache, guild_id: Option<GuildId>, input: 
 
         if let Some(guild_id) = guild_id {
             if let Some(channel_ids) = cache.guild_channels(guild_id) {
-                for channel_id in channel_ids {
-                    if let Some(channel) = cache.guild_channel(channel_id) {
+                for channel_id in channel_ids.iter() {
+                    if let Some(channel) = cache.guild_channel(*channel_id) {
                         if channel.name() == channel_name {
                             out = out.replace(
                                 channel_match
                                     .get(0)
                                     .expect("group zero must exist")
                                     .as_str(),
-                                &channel.id().mention(),
+                                &channel.id().mention().to_string(),
                             );
                         }
                     }
@@ -60,23 +61,21 @@ pub fn create_users(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &st
             .as_str();
 
         if let Some(guild_id) = guild_id {
-            if let Some(members) = cache.members(guild_id) {
-                for member in members {
-                    if let Some(nick) = &member.nick {
-                        if nick == user_name {
-                            out = out.replace(
-                                user_match.get(0).expect("group zero must exist").as_str(),
-                                &member.user_id.mention(),
-                            );
-                        }
-                    }
-
-                    if member.user(cache).expect("FIX ME").name == user_name {
+            for member in cache.iter().members().filter(|m| m.key().0 == guild_id) {
+                if let Some(nick) = member.nick() {
+                    if nick == user_name {
                         out = out.replace(
                             user_match.get(0).expect("group zero must exist").as_str(),
-                            &member.user_id.mention(),
+                            &member.user_id().mention().to_string(),
                         );
                     }
+                }
+
+                if member.user(cache).expect("FIX ME").name == user_name {
+                    out = out.replace(
+                        user_match.get(0).expect("group zero must exist").as_str(),
+                        &member.user_id().mention().to_string(),
+                    );
                 }
             }
         }
@@ -98,16 +97,17 @@ pub fn create_roles(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &st
             .as_str();
 
         if let Some(guild_id) = guild_id {
-            if let Some(roles) = cache.roles(guild_id) {
-                for role_id in roles {
-                    if let Some(role) = cache.role(role_id) {
-                        if role.name == role_name {
-                            out = out.replace(
-                                role_match.get(0).expect("group zero must exist").as_str(),
-                                &role_id.mention(),
-                            );
-                        }
-                    }
+            for role_ref in cache
+                .iter()
+                .roles()
+                .filter(|r| r.value().guild_id() == guild_id)
+            {
+                let role = role_ref.value();
+                if role.name == role_name {
+                    out = out.replace(
+                        role_match.get(0).expect("group zero must exist").as_str(),
+                        &role_ref.value().mention().to_string(),
+                    );
                 }
             }
         }
@@ -137,16 +137,13 @@ pub fn create_emojis(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &s
             .expect("Regex contains two groups")
             .as_str();
         if let Some(guild_id) = guild_id {
-            if let Some(emojis) = cache.emojis(guild_id) {
-                for emoji_id in emojis {
-                    if let Some(emoji) = cache.emoji(emoji_id) {
-                        if emoji.name == emoji_name {
-                            out = out.replace(
-                                emoji_match.get(0).expect("group zero must exist").as_str(),
-                                &emoji.mention(),
-                            );
-                        }
-                    }
+            for emoji_ref in cache.iter().emojis().filter(|e| e.guild_id() == guild_id) {
+                let emoji = emoji_ref.value().resource();
+                if emoji.name() == emoji_name {
+                    out = out.replace(
+                        emoji_match.get(0).expect("group zero must exist").as_str(),
+                        &emoji.id().mention().to_string(),
+                    );
                 }
             }
         }

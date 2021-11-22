@@ -9,13 +9,13 @@ pub trait CacheExt {
 impl CacheExt for InMemoryCache {
     fn dynamic_channel(&self, channel_id: ChannelId) -> Option<DynamicChannel> {
         if let Some(channel) = self.guild_channel(channel_id) {
-            return Some(DynamicChannel::Guild(channel));
+            return Some(DynamicChannel::Guild(channel.resource().clone()));
         }
         if let Some(channel) = self.private_channel(channel_id) {
-            return Some(DynamicChannel::Private(channel));
+            return Some(DynamicChannel::Private(channel.value().clone()));
         }
         if let Some(channel) = self.group(channel_id) {
-            return Some(DynamicChannel::Group(channel));
+            return Some(DynamicChannel::Group(channel.value().clone()));
         }
 
         None

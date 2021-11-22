@@ -17,10 +17,11 @@ use std::{
     collections::{HashSet, VecDeque},
     rc::Rc,
 };
+use time::OffsetDateTime;
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::{
     channel::{Message as DiscordMessage, ReactionType},
-    gateway::payload::{MessageUpdate, RequestGuildMembers},
+    gateway::payload::{incoming::MessageUpdate, outgoing::RequestGuildMembers},
     id::{ChannelId, GuildId, MessageId, UserId},
 };
 use weechat::{buffer::BufferHandle, Weechat};
@@ -77,18 +78,18 @@ impl WeecordMessage {
         Self::LocalEcho {
             guild_id,
             content,
-            timestamp: chrono::Utc::now().timestamp(),
+            timestamp: OffsetDateTime::now_utc().unix_timestamp(),
             nonce,
         }
     }
 
     pub fn id(&self) -> MessageId {
         match self {
-            WeecordMessage::LocalEcho { nonce, .. } => MessageId(*nonce),
+            WeecordMessage::LocalEcho { nonce, .. } => MessageId::new(*nonce).expect("non zero"),
             WeecordMessage::Text(msg) => msg.id,
             #[cfg(feature = "images")]
             WeecordMessage::Image { msg, .. } => msg.id,
-            WeecordMessage::Notification { id, .. } => MessageId(*id),
+            WeecordMessage::Notification { id, .. } => MessageId::new(*id).expect("non zero"),
         }
     }
 }
@@ -216,15 +217,9 @@ impl WeechatMessage<MessageId, State> for WeecordMessage {
     fn timestamp(&self, _: &mut State) -> i64 {
         match self {
             WeecordMessage::LocalEcho { timestamp, .. } => *timestamp,
-            WeecordMessage::Text(msg) => chrono::DateTime::parse_from_rfc3339(&msg.timestamp)
-                .expect("Discord returned an invalid datetime")
-                .timestamp(),
+            WeecordMessage::Text(msg) => msg.timestamp.as_secs() as i64,
             #[cfg(feature = "images")]
-            WeecordMessage::Image { msg, .. } => {
-                chrono::DateTime::parse_from_rfc3339(&msg.timestamp)
-                    .expect("Discord returned an invalid datetime")
-                    .timestamp()
-            },
+            WeecordMessage::Image { msg, .. } => msg.timestamp.as_secs() as i64,
             WeecordMessage::Notification { .. } => 0,
         }
     }
@@ -412,7 +407,8 @@ impl WeecordRenderer {
                 .find(|msg_nonce| *msg_nonce == incoming_nonce);
 
             if let Some(local_echo_nonce) = local_echo_nonce {
-                self.inner.remove_msg(&MessageId(local_echo_nonce));
+                self.inner
+                    .remove_msg(&MessageId::new(local_echo_nonce).expect("non zero"));
                 self.redraw_buffer(&[]);
             }
         }
@@ -493,14 +489,14 @@ impl WeecordRenderer {
                 .await
             {
                 Err(e) => tracing::warn!(
-                    guild.id = guild_id.0,
-                    channel.id = guild_id.0,
+                    guild.id = guild_id.get(),
+                    channel.id = guild_id.get(),
                     "Failed to request guild member: {:#?}",
                     e
                 ),
                 Ok(_) => tracing::trace!(
-                    guild.id = guild_id.0,
-                    channel.id = guild_id.0,
+                    guild.id = guild_id.get(),
+                    channel.id = guild_id.get(),
                     "Requested guild members"
                 ),
             }
@@ -710,9 +706,7 @@ fn format_join_message(msg: &DiscordMessage, author: &str) -> String {
         "Yay you made it, {0}!",
     ];
 
-    let created_at_ms = chrono::DateTime::parse_from_rfc3339(&msg.timestamp)
-        .expect("Discord returned an invalid datetime")
-        .timestamp_millis() as u64;
+    let created_at_ms = msg.timestamp.as_secs() * 1000;
 
     FORMATS[(created_at_ms % FORMATS.len() as u64) as usize].replace("{0}", author)
 }

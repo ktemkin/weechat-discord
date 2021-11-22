@@ -1,5 +1,4 @@
 use crate::twilight_utils::color::Color;
-use std::borrow::Cow;
 use twilight_cache_inmemory::{model::CachedMember, InMemoryCache};
 use twilight_model::{
     guild::{Member, Role},
@@ -14,7 +13,7 @@ pub trait MemberExt {
 
 pub trait CachedMemberExt {
     fn color(&self, cache: &InMemoryCache) -> Option<Color>;
-    fn display_name(&self, cache: &InMemoryCache) -> Cow<str>;
+    fn display_name(&self, cache: &InMemoryCache) -> String;
     fn highest_role_info(&self, cache: &InMemoryCache) -> Option<Role>;
     fn user(&self, cache: &InMemoryCache) -> Option<User>;
 }
@@ -63,7 +62,7 @@ impl MemberExt for Member {
                 }
 
                 let pos = role.position;
-                highest = Some((role, pos));
+                highest = Some((role.resource().clone(), pos));
             }
         }
 
@@ -74,7 +73,7 @@ impl MemberExt for Member {
 impl CachedMemberExt for CachedMember {
     fn color(&self, cache: &InMemoryCache) -> Option<Color> {
         let mut roles = Vec::new();
-        for role in &self.roles {
+        for role in self.roles() {
             if let Some(role) = cache.role(*role) {
                 roles.push(role);
             }
@@ -95,20 +94,18 @@ impl CachedMemberExt for CachedMember {
             .map(|role| Color::new(role.color))
     }
 
-    fn display_name(&self, cache: &InMemoryCache) -> Cow<str> {
-        self.nick.as_ref().map(Cow::from).unwrap_or_else(|| {
-            Cow::from(
-                self.user(cache)
-                    .map(|u| u.name)
-                    .unwrap_or_else(|| String::from("<failed>")),
-            )
+    fn display_name(&self, cache: &InMemoryCache) -> String {
+        self.nick().map(|n| n.to_owned()).unwrap_or_else(|| {
+            self.user(cache)
+                .map(|u| u.name)
+                .unwrap_or_else(|| String::from("<failed>"))
         })
     }
 
     fn highest_role_info(&self, cache: &InMemoryCache) -> Option<Role> {
         let mut highest: Option<(Role, i64)> = None;
 
-        for role_id in &self.roles {
+        for role_id in self.roles() {
             if let Some(role) = cache.role(*role_id) {
                 // Skip this role if this role in iteration has:
                 //
@@ -121,7 +118,7 @@ impl CachedMemberExt for CachedMember {
                 }
 
                 let pos = role.position;
-                highest = Some((role, pos));
+                highest = Some((role.resource().clone(), pos));
             }
         }
 
@@ -129,6 +126,6 @@ impl CachedMemberExt for CachedMember {
     }
 
     fn user(&self, cache: &InMemoryCache) -> Option<User> {
-        cache.user(self.user_id)
+        cache.user(self.user_id()).map(|u| u.value().clone())
     }
 }

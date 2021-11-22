@@ -3,7 +3,7 @@ use crate::{
     twilight_utils::{ext::CachedMemberExt, Color, GroupIdExt},
 };
 use std::rc::Rc;
-use twilight_model::{gateway::payload::MemberListItem, id::GuildId};
+use twilight_model::{gateway::payload::incoming::MemberListItem, id::GuildId};
 use weechat::buffer::{BufferHandle, NickSettings};
 
 pub struct Nicklist {

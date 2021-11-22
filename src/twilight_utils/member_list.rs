@@ -2,7 +2,7 @@ use crate::twilight_utils::ext::ChannelExt;
 use std::collections::HashMap;
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::{
-    gateway::payload::{
+    gateway::payload::incoming::{
         GroupId, MemberListId, MemberListItem, MemberListUpdate, MemberListUpdateOp,
     },
     guild::Role,
@@ -19,7 +19,7 @@ impl GroupIdExt for GroupId {
         match self {
             GroupId::Online => None,
             GroupId::Offline => None,
-            GroupId::RoleId(role_id) => cache.role(*role_id),
+            GroupId::RoleId(role_id) => cache.role(*role_id).map(|r| r.resource().clone()),
         }
     }
 
@@ -27,7 +27,7 @@ impl GroupIdExt for GroupId {
         match self {
             GroupId::Online => Some("Online".into()),
             GroupId::Offline => Some("Offline".into()),
-            GroupId::RoleId(role_id) => cache.role(*role_id).map(|role| role.name),
+            GroupId::RoleId(role_id) => cache.role(*role_id).map(|role| role.name.clone()),
         }
     }
 }

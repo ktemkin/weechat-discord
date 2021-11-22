@@ -21,7 +21,7 @@ use twilight_model::{
         message::MessageReaction, GuildChannel as TwilightGuildChannel, Message,
         PrivateChannel as TwilightPrivateChannel, Reaction,
     },
-    gateway::payload::{MemberListItem, MessageUpdate},
+    gateway::payload::incoming::{MemberListItem, MessageUpdate},
     guild::Permissions,
     id::{ChannelId, EmojiId, GuildId, MessageId, UserId},
     user::User,
@@ -348,16 +348,16 @@ impl Channel {
         );
         let channel_name = config
             .guilds()
-            .get(&guild.id)
+            .get(&guild.id())
             .and_then(|g| g.channel_renames().get(&channel.id()).cloned())
             .unwrap_or_else(|| channel.name().to_owned());
         let channel_buffer = ChannelBuffer::guild(
             &channel_name,
             channel.topic(),
             &nick,
-            &guild.name,
+            guild.name(),
             channel.id(),
-            guild.id,
+            guild.id(),
             conn,
             config,
             instance,
@@ -368,7 +368,7 @@ impl Channel {
         )));
         Ok(Channel {
             id: channel.id(),
-            guild_id: Some(guild.id),
+            guild_id: Some(guild.id()),
             inner,
             config: config.clone(),
             private: false,
@@ -435,7 +435,7 @@ impl Channel {
                     // they are from a guild channel
                     if let Some(guild_channel) = conn.cache.guild_channel(id) {
                         for msg in &mut messages {
-                            msg.guild_id = guild_channel.guild_id();
+                            msg.guild_id = Some(guild_channel.guild_id());
                         }
                     }
                     Ok(messages)
@@ -805,7 +805,7 @@ fn request_from_reaction<'a>(reaction: &'a parsing::Reaction) -> Option<RequestR
             }
         },
         Emoji::Custom(name, id) => RequestReactionType::Custom {
-            id: EmojiId(id),
+            id: EmojiId::new(id).expect("non zero"),
             name: Some(name),
         },
         Emoji::Unicode(name) => RequestReactionType::Unicode { name },

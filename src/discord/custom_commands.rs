@@ -29,3 +29,11 @@ pub struct GuildSubscription {
     pub d: GuildSubscriptionInfo,
     pub op: u8,
 }
+
+impl GuildSubscription {
+    pub fn as_message(self) -> twilight_gateway::shard::raw_message::Message {
+        twilight_gateway::shard::raw_message::Message::Text(
+            serde_json::to_string(&self).expect("valid serde"),
+        )
+    }
+}

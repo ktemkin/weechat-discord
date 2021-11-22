@@ -1,6 +1,6 @@
 use twilight_model::{
     channel::Message,
-    gateway::payload::{
+    gateway::payload::incoming::{
         ChannelUpdate, MemberChunk, MemberListUpdate, MessageDelete, MessageUpdate, ReactionAdd,
         ReactionRemove, TypingStart,
     },

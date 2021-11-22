@@ -1,7 +1,7 @@
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::{
     channel::{message::Mention, Message},
-    gateway::payload::MessageUpdate,
+    gateway::payload::incoming::MessageUpdate,
 };
 
 pub trait MessageExt {
@@ -28,7 +28,7 @@ impl MessageExt for Message {
             let mention = Mention {
                 avatar: user.avatar.clone(),
                 bot: user.bot,
-                discriminator: user.discriminator.clone(),
+                discriminator: user.discriminator,
                 id: user.id,
                 // TODO: Should this be populated somehow?
                 member: None,

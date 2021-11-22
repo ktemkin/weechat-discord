@@ -7,13 +7,11 @@ pub mod content;
 mod dynamic_channel;
 pub mod ext;
 mod member_list;
-pub mod mention;
 
 use crate::weechat2::StyledString;
 pub use color::*;
 pub use dynamic_channel::*;
 pub use member_list::*;
-pub use mention::*;
 
 pub fn search_cached_striped_guild_name(
     cache: &InMemoryCache,
@@ -21,7 +19,7 @@ pub fn search_cached_striped_guild_name(
 ) -> Option<CachedGuild> {
     crate::twilight_utils::search_striped_guild_name(
         cache,
-        cache.guilds().expect("guilds never fails"),
+        cache.iter().guilds().map(|g| *g.key()),
         target,
     )
 }
@@ -33,8 +31,8 @@ pub fn search_striped_guild_name(
 ) -> Option<CachedGuild> {
     for guild_id in guilds {
         if let Some(guild) = cache.guild(guild_id) {
-            if utils::clean_name(&guild.name) == utils::clean_name(target) {
-                return Some(guild);
+            if utils::clean_name(guild.name()) == utils::clean_name(target) {
+                return Some(guild.value().clone());
             }
         } else {
             tracing::warn!("{:?} not found in cache", guild_id);
@@ -51,13 +49,13 @@ pub fn search_cached_stripped_guild_channel_name(
     let channels = cache
         .guild_channels(guild_id)
         .expect("guild_channels never fails");
-    for channel_id in channels {
-        if let Some(channel) = cache.guild_channel(channel_id) {
+    for channel_id in channels.iter() {
+        if let Some(channel) = cache.guild_channel(*channel_id) {
             if !channel.is_text_channel(cache) {
                 continue;
             }
             if utils::clean_name(channel.name()) == utils::clean_name(target) {
-                return Some(channel);
+                return Some(channel.resource().clone());
             }
         } else {
             tracing::warn!("{:?} not found in cache", channel_id);
@@ -71,7 +69,7 @@ pub fn current_user_nick(guild: &CachedGuild, cache: &InMemoryCache) -> StyledSt
         .current_user()
         .expect("We have a connection, there must be a user");
 
-    let member = cache.member(guild.id, current_user.id);
+    let member = cache.member(guild.id(), current_user.id);
 
     if let Some(member) = member {
         crate::utils::color::colorize_discord_member(cache, &member, false)
