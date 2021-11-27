@@ -73,6 +73,7 @@ impl Plugin for Weecord {
         }
 
         if let Some(token) = self.config.token() {
+            buffer::debug::TOKEN.lock().replace(token.clone());
             let (tx, rx) = channel(1000);
 
             Weechat::spawn({

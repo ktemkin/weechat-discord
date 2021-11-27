@@ -1,8 +1,12 @@
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use std::io;
 use weechat::{
     buffer::{BufferBuilder, NotifyLevel},
     Weechat,
 };
+
+pub static TOKEN: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
 pub struct Debug;
 
@@ -21,7 +25,10 @@ impl Debug {
     }
 
     pub async fn write_to_buffer(msg: Vec<u8>) {
-        let message = String::from_utf8(msg).unwrap();
+        let mut message = String::from_utf8(msg).unwrap();
+        if let Some(token) = TOKEN.lock().as_ref() {
+            message = message.replace(token, "<token redacted>");
+        }
         let message = Weechat::execute_modifier("color_decode_ansi", "1", &message).unwrap();
         if let Some(buffer) =
             unsafe { Weechat::weechat() }.buffer_search("weecord", "weecord.tracing")
