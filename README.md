@@ -96,14 +96,16 @@ Open Devtools (ctrl+shift+i or cmd+opt+i) and navigate to Application tab > Loca
 Discord deletes the token once the page has loaded, so you will need to refresh the page and to grab it quickly
 (disabling your network connection may allow you to grab it more easily).
 
-Once you have your token you can run
+Once you have your token you can save your token **insecurely** with 
 
 ```
 /discord token 123456789ABCDEF
 ```
 
-However, this saves your token insecurely in `$WEECHAT_HOME/weecord.conf`, so it is recommended you use [secure data](https://weechat.org/blog/post/2013/08/04/Secured-data).
-If you saved your token as `discord_token` then you would run
+However, your token will be saved in plaintext in `$WEECHAT_HOME/weecord.conf` so if this file is committed publicly or shared publicly, anyone can access your account (and know the id's of servers and channels you are in).
+
+To prevent this, secure your token using [secure data](https://weechat.org/blog/post/2013/08/04/Secured-data).
+If you secured your token as `discord_token` then you would run
 
 ```
 /discord token ${sec.data.discord_token}
