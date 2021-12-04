@@ -542,7 +542,7 @@ fn render_msg(
     let msg_content = msg_content.build();
     match msg.kind {
         Regular => (prefix, msg_content),
-        ApplicationCommand => (prefix, msg_content),
+        ChatInputCommand => (prefix, msg_content),
         Reply => match msg.referenced_message.as_ref() {
             Some(ref_msg) => {
                 let mut ref_msg = ref_msg.clone();
@@ -592,7 +592,7 @@ fn format_embeds(msg: &DiscordMessage, leading_newline: bool) -> StyledString {
             out.push_str("▎");
             out.push_style(Style::color("bold"));
             // TODO: Should we do something else here if None?
-            out.push_str(&author.name.clone().unwrap_or_default());
+            out.push_str(&author.name.clone());
             out.pop_style(Style::color("bold"));
             if let Some(url) = &author.url {
                 out.push_str(&format!(" ({})", url));
@@ -706,7 +706,7 @@ fn format_join_message(msg: &DiscordMessage, author: &str) -> String {
         "Yay you made it, {0}!",
     ];
 
-    let created_at_ms = msg.timestamp.as_secs() * 1000;
+    let created_at_ms = msg.timestamp.as_secs() as u64 * 1000;
 
     FORMATS[(created_at_ms % FORMATS.len() as u64) as usize].replace("{0}", author)
 }
@@ -781,7 +781,7 @@ fn format_event_message(msg: &DiscordMessage, author: &str) -> (String, String) 
             "This is the server discovery final grace period warning".to_owned(),
         ),
         GuildInviteReminder => (weechat::Prefix::Network, "Invite reminder".to_owned()),
-        ApplicationCommand | Regular | Reply => unreachable!(),
+        ChatInputCommand | Regular | Reply => unreachable!(),
         ThreadCreated => (
             weechat::Prefix::Network,
             format!("{} started a thread: {}", bold(author), bold(&msg.content)),
