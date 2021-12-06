@@ -19,22 +19,6 @@ _urlsafe_decode_translation = str.maketrans("-_", "+/")
 def round_down(num, divisor):
     return num - (num % divisor)
 
-
-def strings(filename, min=4) -> Iterator[str]:
-    with open(filename, errors="ignore") as f:
-        result = ""
-        for c in f.read():
-            if c in string.printable:
-                result += c
-                continue
-            if len(result) >= min:
-                yield result
-            result = ""
-        if len(result) >= min:
-            yield result
-
-
-
 def urlsafe_b64decode(s: str):
     s = s.translate(_urlsafe_decode_translation)
     return b64decode(s, validate=True)
@@ -119,24 +103,12 @@ def main():
 
     # Then collect strings that look like discord tokens.
     token_candidates = set()
+    token_re = re.compile(rb'([a-z0-9_-]{23,28}\.[a-z0-9_-]{6,7}\.[a-z0-9_-]{27})', flags=re.IGNORECASE)
     for database in discord_databases:
-        for candidates in map(lambda s: s.split(), strings(database, 40)):
-            for candidate in candidates:
+        for line in open(database, 'rb'):
+            for result in token_re.finditer(line):
                 try:
-                    candidate = candidate.split('"')[-2]
-                except:
-                    pass
-                if len(candidate) < 15:
-                    continue
-                if " " in candidate:
-                    continue
-                parts = re.split(r"(?<=\w)\.(?=\w)", candidate)
-                if len(parts) != 3:
-                    continue
-                if len(parts[1]) < 6:
-                    continue
-                try:
-                    token_candidates.add(parseToken(candidate))
+                    token_candidates.add(parseToken(result.group(0).decode()))
                 except:
                     continue
 
