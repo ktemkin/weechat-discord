@@ -9,7 +9,7 @@ pcre = ["simple_ast/pcre"]
 onig = ["simple_ast/onig"]
 
 [dependencies]
-once_cell = "1.4.0"
+once_cell = "1.8.0"
 
 [dependencies.simple_ast]
 git = "https://github.com/Noskcaj19/simple-ast"

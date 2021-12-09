@@ -5,6 +5,7 @@ use crate::{
 use itertools::{Itertools, Position};
 use parsing::MarkdownNode;
 use std::{rc::Rc, sync::RwLock};
+use time::{macros::format_description, Duration, OffsetDateTime, PrimitiveDateTime};
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::id::{ChannelId, EmojiId, GuildId, RoleId, UserId};
 
@@ -228,6 +229,134 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
                 out.push_str("@unknown-role");
             }
             out
+        },
+        Timestamp(time, style) => {
+            out.push_str(&fmt_timestamp(*time, style.unwrap_or('f')));
+            out
+        },
+    }
+}
+
+fn fmt_timestamp(timestamp: i64, style: char) -> String {
+    let timestamp = match OffsetDateTime::from_unix_timestamp(timestamp as i64)
+        .map(|offset| PrimitiveDateTime::new(offset.date(), offset.time()))
+    {
+        Ok(timestamp) => timestamp,
+        Err(_) => {
+            return "<invalid timestamp>".to_owned();
+        },
+    };
+    match style {
+        't' => timestamp.format(format_description!("[hour]:[minute]")),
+        'T' => timestamp.format(format_description!("[hour]:[minute]:[second]")),
+        'd' => timestamp.format(format_description!("[day]/[month]/[year]")),
+        'D' => timestamp.format(format_description!("[day] [month repr:long] [year]")),
+        'f' => timestamp.format(format_description!(
+            "[day] [month repr:long] [year] [hour]:[minute]"
+        )),
+        'F' => timestamp.format(format_description!(
+            "[weekday repr:long], [day] [month repr:long] [year] [hour]:[minute]"
+        )),
+        'R' => Ok(humanize_relative_date(timestamp)),
+        _ => Ok("<invalid timestamp>".to_owned()),
+    }
+    .unwrap()
+}
+
+fn humanize_relative_date(date: PrimitiveDateTime) -> String {
+    let now = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
+    let now = PrimitiveDateTime::new(now.date(), now.time());
+
+    humanize_duration(now - date)
+}
+
+// Based on discord relative date formatting
+fn humanize_duration(duration: Duration) -> String {
+    match duration.whole_seconds() {
+        n if n.abs() < 2 => {
+            if n >= 0 {
+                "just now".to_owned()
+            } else {
+                "now".to_owned()
+            }
+        },
+        n if n.abs() < 60 => {
+            if n >= 0 {
+                format!("{} seconds ago", n)
+            } else {
+                format!("in {} seconds", -n)
+            }
+        },
+        n if n.abs() < 120 => {
+            if n >= 0 {
+                "about a minute ago".to_owned()
+            } else {
+                "in about a minute".to_owned()
+            }
+        },
+        n if n.abs() < 3600 => {
+            if n >= 0 {
+                format!("{} minutes ago", (n as f64 / 60.).floor())
+            } else {
+                format!("in {} minutes", (-n as f64 / 60.).floor())
+            }
+        },
+
+        n if n.abs() < 7200 => {
+            if n >= 0 {
+                "about an hour ago".to_owned()
+            } else {
+                "in about an hour".to_owned()
+            }
+        },
+        n if n.abs() < 86400 => {
+            if n >= 0 {
+                format!("{} hours ago", (n as f64 / 3600.).floor())
+            } else {
+                format!("in {} hours", (-n as f64 / 3600.).floor())
+            }
+        },
+        n if n.abs() < 172800 => {
+            if n >= 0 {
+                "1 day ago".to_owned()
+            } else {
+                "in 1 day".to_owned()
+            }
+        },
+        n if n.abs() < 2505600 => {
+            if n >= 0 {
+                format!("{} days ago", (n as f64 / 86400.).floor())
+            } else {
+                format!("in {} days", (-n as f64 / 86400.).floor())
+            }
+        },
+        n if n.abs() < 5184000 => {
+            if n >= 0 {
+                "about a month ago".to_owned()
+            } else {
+                "in about a month".to_owned()
+            }
+        },
+        n if n.abs() / 2505600 < 12 => {
+            if n >= 0 {
+                format!("{} months ago", (n as f64 / 2505600.).floor())
+            } else {
+                format!("in {} months", (-n as f64 / 2505600.).floor())
+            }
+        },
+        _ => {
+            let years = (duration.whole_days() as f64 / 365.).ceil() as i64;
+            if years.abs() < 2 {
+                if years >= 0 {
+                    "a year ago".to_owned()
+                } else {
+                    "in a year".to_owned()
+                }
+            } else if years >= 0 {
+                format!("{} years ago", years)
+            } else {
+                format!("in {} years", years)
+            }
         },
     }
 }

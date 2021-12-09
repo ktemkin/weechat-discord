@@ -735,9 +735,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.10.1"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69ddb889f9d0d08a67338271fa9b62996bc788c7796a5c18cf057420aaed5eaf"
+checksum = "a9a9d19fa1e79b6215ff29b9d6880b706147f16e9b1dbb1e4e5947b5b02bc5e3"
 dependencies = [
  "either",
 ]
@@ -1020,6 +1020,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_threads"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f14f385fd31045b0555b7656038b9609e3b7a67f0c68e3435c0a7361f813573"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "object"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1207,9 +1216,9 @@ dependencies = [
 
 [[package]]
 name = "pkg-config"
-version = "0.3.22"
+version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12295df4f294471248581bc09bef3c38a5e46f1e36d6a37353621a0c6c357e1f"
+checksum = "d1a3ea4f0dd7f1f3e512cf97bf100819aa547f36a6eccac8dbaae839eb92363e"
 
 [[package]]
 name = "plist"
@@ -1221,7 +1230,7 @@ dependencies = [
  "indexmap",
  "line-wrap",
  "serde",
- "time",
+ "time 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "xml-rs",
 ]
 
@@ -1245,9 +1254,9 @@ checksum = "ed0cfbc8191465bed66e1718596ee0b0b35d5ee1f41c5df2189d0fe8bde535ba"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.32"
+version = "1.0.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba508cc11742c0dc5c1659771673afbab7a0efab23aa17e854cbab0837ed0b43"
+checksum = "fb37d2df5df740e582f28f8560cf425f52bb267d872fe58358eadb554909f07a"
 dependencies = [
  "unicode-xid",
 ]
@@ -1641,7 +1650,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 [[package]]
 name = "simple_ast"
 version = "0.1.0"
-source = "git+https://github.com/Noskcaj19/simple-ast#d6c75b6ac8162b428237e57a25ce8c810a5e5b9b"
+source = "git+https://github.com/Noskcaj19/simple-ast#62d25731262eb3817556af90cb4057563dc10add"
 dependencies = [
  "lazy_static",
  "onig",
@@ -1774,6 +1783,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "time"
+version = "0.3.5"
+source = "git+https://github.com/time-rs/time#fa5c0a083c29432b6ded8fa49df2ac1c67c94612"
+dependencies = [
+ "itoa",
+ "libc",
+ "num_threads",
+ "time-macros",
+]
+
+[[package]]
+name = "time-macros"
+version = "0.2.3"
+source = "git+https://github.com/time-rs/time#fa5c0a083c29432b6ded8fa49df2ac1c67c94612"
+
+[[package]]
 name = "tinyvec"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1829,9 +1854,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.16.0"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e057364a4dd37870b33bf8dc1885d29187d90770f488d599d3ee8d9e4916fbd3"
+checksum = "e80b39df6afcc12cdf752398ade96a6b9e99c903dfdc36e53ad10b9c366bca72"
 dependencies = [
  "futures-util",
  "log",
@@ -2061,7 +2086,7 @@ dependencies = [
  "serde",
  "serde-value",
  "serde_repr",
- "time",
+ "time 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
 ]
 
@@ -2290,7 +2315,7 @@ dependencies = [
  "serde_json",
  "syntect",
  "term-image",
- "time",
+ "time 0.3.5 (git+https://github.com/time-rs/time)",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.3",

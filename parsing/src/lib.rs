@@ -8,6 +8,7 @@ pub fn parse_markdown(str: &str) -> Styled<MarkdownNode> {
         &Escape,
         &Newline,
         &Emoji,
+        &Timestamp,
         &ChannelMention,
         &UserMention,
         &RoleMention,

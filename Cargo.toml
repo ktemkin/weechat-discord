@@ -36,7 +36,7 @@ rand = "0.8.4"
 itertools = "0.10.1"
 serde_json = "1.0.72"
 parking_lot = "0.11.2"
-time = "0.3.5"
+time = { features = ["macros", "formatting", "local-offset"], git = "https://github.com/time-rs/time" }
 
 [dependencies.hyper]
 version = "0.14.15"
