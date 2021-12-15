@@ -514,6 +514,14 @@ impl Config {
     }
 
     pub fn token(&self) -> Option<String> {
+        self.inner
+            .borrow()
+            .token
+            .clone()
+            .and_then(|token| Weechat::eval_string_expression(&token).ok())
+    }
+
+    pub fn raw_token(&self) -> Option<String> {
         self.inner.borrow().token.clone()
     }
 
@@ -590,7 +598,7 @@ impl Config {
         general
             .search_option("token")
             .expect("token option must exist")
-            .set(&self.token().unwrap_or_default(), false);
+            .set(&self.raw_token().unwrap_or_default(), false);
 
         general
             .search_option("log_directive")
