@@ -2,10 +2,11 @@ use crate::{
     twilight_utils::{ext::ChannelExt, Color},
     weechat2::{Style, StyledString},
 };
+use chrono::{DateTime, Local, Offset};
 use itertools::{Itertools, Position};
 use parsing::MarkdownNode;
 use std::{rc::Rc, sync::RwLock};
-use time::{macros::format_description, Duration, OffsetDateTime, PrimitiveDateTime};
+use time::{macros::format_description, Duration, OffsetDateTime};
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::id::{ChannelId, EmojiId, GuildId, RoleId, UserId};
 
@@ -231,41 +232,46 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
             out
         },
         Timestamp(time, style) => {
-            out.push_str(&fmt_timestamp(*time, style.unwrap_or('f')));
+            out.if_do(show_fmt, |s| s.push_str("<"))
+                .push_str(&fmt_timestamp(*time, style.unwrap_or('f')))
+                .if_do(show_fmt, |s| s.push_str(">"));
             out
         },
     }
 }
 
 fn fmt_timestamp(timestamp: i64, style: char) -> String {
-    let timestamp = match OffsetDateTime::from_unix_timestamp(timestamp as i64)
-        .map(|offset| PrimitiveDateTime::new(offset.date(), offset.time()))
-    {
-        Ok(timestamp) => timestamp,
-        Err(_) => {
-            return "<invalid timestamp>".to_owned();
-        },
-    };
+    // Temporary solution until `time` supports local offset in multirhreaded environments
+    let local_timestamp: DateTime<Local> = chrono::Local::now();
+
+    let offset_time = time::OffsetDateTime::from_unix_timestamp(
+        timestamp + local_timestamp.offset().fix().local_minus_utc() as i64,
+    )
+    .unwrap();
     match style {
-        't' => timestamp.format(format_description!("[hour]:[minute]")),
-        'T' => timestamp.format(format_description!("[hour]:[minute]:[second]")),
-        'd' => timestamp.format(format_description!("[day]/[month]/[year]")),
-        'D' => timestamp.format(format_description!("[day] [month repr:long] [year]")),
-        'f' => timestamp.format(format_description!(
+        't' => offset_time.format(format_description!("[hour]:[minute]")),
+        'T' => offset_time.format(format_description!("[hour]:[minute]:[second]")),
+        'd' => offset_time.format(format_description!("[day]/[month]/[year]")),
+        'D' => offset_time.format(format_description!("[day] [month repr:long] [year]")),
+        'f' => offset_time.format(format_description!(
             "[day] [month repr:long] [year] [hour]:[minute]"
         )),
-        'F' => timestamp.format(format_description!(
+        'F' => offset_time.format(format_description!(
             "[weekday repr:long], [day] [month repr:long] [year] [hour]:[minute]"
         )),
-        'R' => Ok(humanize_relative_date(timestamp)),
+        'R' => Ok(humanize_relative_date(offset_time)),
         _ => Ok("<invalid timestamp>".to_owned()),
     }
     .unwrap()
 }
 
-fn humanize_relative_date(date: PrimitiveDateTime) -> String {
-    let now = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
-    let now = PrimitiveDateTime::new(now.date(), now.time());
+fn humanize_relative_date(date: OffsetDateTime) -> String {
+    let local_timestamp: DateTime<Local> = chrono::Local::now();
+
+    let now = OffsetDateTime::from_unix_timestamp(
+        local_timestamp.timestamp() + local_timestamp.offset().fix().local_minus_utc() as i64,
+    )
+    .unwrap();
 
     humanize_duration(now - date)
 }
@@ -610,7 +616,7 @@ mod tests {
         });
 
         assert_eq!(
-            format_with_cache("hello <:random-emoji:1> <:emoji-two:2>", &cache, None,),
+            format_with_cache("hello <:random-emoji:1> <:emoji-two:2>", &cache, None),
             "hello :random-emoji: :emoji-two:"
         );
     }

@@ -37,6 +37,7 @@ itertools = "0.10.1"
 serde_json = "1.0.72"
 parking_lot = "0.11.2"
 time = { features = ["macros", "formatting", "local-offset"], git = "https://github.com/time-rs/time" }
+chrono = "0.4.19"
 
 [dependencies.hyper]
 version = "0.14.15"
