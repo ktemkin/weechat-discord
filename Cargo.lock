@@ -2307,7 +2307,7 @@ dependencies = [
 [[package]]
 name = "weechat"
 version = "0.4.0"
-source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#34e04d21355ea6a531e4e99263bc01999755d1c9"
+source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#8b338575e61e067275673775f593617ebbe5f7c3"
 dependencies = [
  "async-task",
  "async-trait",
@@ -2365,7 +2365,7 @@ dependencies = [
 [[package]]
 name = "weechat-macro"
 version = "0.4.0"
-source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#34e04d21355ea6a531e4e99263bc01999755d1c9"
+source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#8b338575e61e067275673775f593617ebbe5f7c3"
 dependencies = [
  "libc",
  "proc-macro2",
@@ -2376,7 +2376,7 @@ dependencies = [
 [[package]]
 name = "weechat-sys"
 version = "0.4.0"
-source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#34e04d21355ea6a531e4e99263bc01999755d1c9"
+source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#8b338575e61e067275673775f593617ebbe5f7c3"
 dependencies = [
  "bindgen",
  "libc",
