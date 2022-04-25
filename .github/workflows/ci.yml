@@ -22,7 +22,7 @@ jobs:
           sudo apt install weechat-devel-curses libclang-dev
       - name: Install macOS packages
         if: runner.os == 'macOS'
-        run: brew install weechat
+        run: brew install --build-from-source noskcaj19/tap/weechat@3.5
       # NB: We install gnu-tar because BSD tar is buggy on Github's macos machines. https://github.com/actions/cache/issues/403
       - name: Install GNU tar (macOS)
         if: runner.os == 'macOS'
