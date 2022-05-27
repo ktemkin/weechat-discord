@@ -1,17 +1,20 @@
-use crate::{twilight_utils::ext::GuildChannelExt, utils};
+use crate::utils;
 use twilight_cache_inmemory::{model::CachedGuild, InMemoryCache};
-use twilight_model::{channel::GuildChannel, id::GuildId};
+use twilight_model::{
+    channel::Channel,
+    id::{marker::GuildMarker, Id},
+};
 
 mod color;
 pub mod content;
-mod dynamic_channel;
 pub mod ext;
 mod member_list;
 
 use crate::weechat2::StyledString;
 pub use color::*;
-pub use dynamic_channel::*;
 pub use member_list::*;
+
+use self::ext::ChannelExt;
 
 pub fn search_cached_striped_guild_name(
     cache: &InMemoryCache,
@@ -26,7 +29,7 @@ pub fn search_cached_striped_guild_name(
 
 pub fn search_striped_guild_name(
     cache: &InMemoryCache,
-    guilds: impl IntoIterator<Item = GuildId>,
+    guilds: impl IntoIterator<Item = Id<GuildMarker>>,
     target: &str,
 ) -> Option<CachedGuild> {
     for guild_id in guilds {
@@ -43,19 +46,19 @@ pub fn search_striped_guild_name(
 
 pub fn search_cached_stripped_guild_channel_name(
     cache: &InMemoryCache,
-    guild_id: GuildId,
+    guild_id: Id<GuildMarker>,
     target: &str,
-) -> Option<GuildChannel> {
+) -> Option<Channel> {
     let channels = cache
         .guild_channels(guild_id)
         .expect("guild_channels never fails");
     for channel_id in channels.iter() {
-        if let Some(channel) = cache.guild_channel(*channel_id) {
+        if let Some(channel) = cache.channel(*channel_id) {
             if !channel.is_text_channel(cache) {
                 continue;
             }
-            if utils::clean_name(channel.name()) == utils::clean_name(target) {
-                return Some(channel.resource().clone());
+            if utils::clean_name(&channel.name()) == utils::clean_name(target) {
+                return Some(channel.value().clone());
             }
         } else {
             tracing::warn!("{:?} not found in cache", channel_id);

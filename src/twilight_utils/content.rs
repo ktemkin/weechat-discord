@@ -1,11 +1,15 @@
-use crate::twilight_utils::ext::CachedMemberExt;
+use crate::twilight_utils::ext::{CachedMemberExt, ChannelExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_mention::Mention;
-use twilight_model::id::GuildId;
+use twilight_model::id::{marker::GuildMarker, Id};
 
-pub fn create_mentions(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &str) -> String {
+pub fn create_mentions(
+    cache: &InMemoryCache,
+    guild_id: Option<Id<GuildMarker>>,
+    input: &str,
+) -> String {
     let mut out = create_channels(cache, guild_id, input);
     out = create_users(cache, guild_id, &out);
     out = create_roles(cache, guild_id, &out);
@@ -14,7 +18,11 @@ pub fn create_mentions(cache: &InMemoryCache, guild_id: Option<GuildId>, input: 
     out
 }
 
-pub fn create_channels(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &str) -> String {
+pub fn create_channels(
+    cache: &InMemoryCache,
+    guild_id: Option<Id<GuildMarker>>,
+    input: &str,
+) -> String {
     static CHANNEL_MENTION: Lazy<Regex> = Lazy::new(|| Regex::new(r"#([a-z_\-\d]+)").unwrap());
 
     let mut out = String::from(input);
@@ -29,14 +37,14 @@ pub fn create_channels(cache: &InMemoryCache, guild_id: Option<GuildId>, input: 
         if let Some(guild_id) = guild_id {
             if let Some(channel_ids) = cache.guild_channels(guild_id) {
                 for channel_id in channel_ids.iter() {
-                    if let Some(channel) = cache.guild_channel(*channel_id) {
+                    if let Some(channel) = cache.channel(*channel_id) {
                         if channel.name() == channel_name {
                             out = out.replace(
                                 channel_match
                                     .get(0)
                                     .expect("group zero must exist")
                                     .as_str(),
-                                &channel.id().mention().to_string(),
+                                &channel.id.mention().to_string(),
                             );
                         }
                     }
@@ -48,7 +56,11 @@ pub fn create_channels(cache: &InMemoryCache, guild_id: Option<GuildId>, input: 
     out
 }
 
-pub fn create_users(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &str) -> String {
+pub fn create_users(
+    cache: &InMemoryCache,
+    guild_id: Option<Id<GuildMarker>>,
+    input: &str,
+) -> String {
     static USER_MENTION: Lazy<Regex> = Lazy::new(|| Regex::new(r"@(.{0,32}?)#(\d{2,4})").unwrap());
 
     let mut out = String::from(input);
@@ -84,7 +96,11 @@ pub fn create_users(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &st
     out
 }
 
-pub fn create_roles(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &str) -> String {
+pub fn create_roles(
+    cache: &InMemoryCache,
+    guild_id: Option<Id<GuildMarker>>,
+    input: &str,
+) -> String {
     static ROLE_MENTION: Lazy<Regex> = Lazy::new(|| Regex::new(r"@([^\s]{1,32})").unwrap());
 
     let mut out = String::from(input);
@@ -116,7 +132,11 @@ pub fn create_roles(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &st
     out
 }
 
-pub fn create_emojis(cache: &InMemoryCache, guild_id: Option<GuildId>, input: &str) -> String {
+pub fn create_emojis(
+    cache: &InMemoryCache,
+    guild_id: Option<Id<GuildMarker>>,
+    input: &str,
+) -> String {
     static EMOJI_MENTIONS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\\?):(\w+):").unwrap());
 
     let mut out = String::from(input);

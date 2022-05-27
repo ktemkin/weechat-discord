@@ -14,7 +14,7 @@ pub enum PluginMessage {
     MessageUpdate { message: Box<MessageUpdate> },
     MemberChunk(MemberChunk),
     TypingStart(TypingStart),
-    ChannelUpdate(ChannelUpdate),
+    ChannelUpdate(Box<ChannelUpdate>),
     ReactionAdd(Box<ReactionAdd>),
     MemberListUpdate(Box<MemberListUpdate>),
     ReactionRemove(Box<ReactionRemove>),

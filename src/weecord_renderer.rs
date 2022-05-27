@@ -22,7 +22,10 @@ use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::{
     channel::{Message as DiscordMessage, ReactionType},
     gateway::payload::{incoming::MessageUpdate, outgoing::RequestGuildMembers},
-    id::{ChannelId, GuildId, MessageId, UserId},
+    id::{
+        marker::{ChannelMarker, GuildMarker, MessageMarker, UserMarker},
+        Id,
+    },
 };
 use weechat::{buffer::BufferHandle, Weechat};
 
@@ -42,7 +45,7 @@ pub enum WeecordMessage {
         id: u64,
     },
     LocalEcho {
-        guild_id: Option<GuildId>,
+        guild_id: Option<Id<GuildMarker>>,
         content: String,
         timestamp: i64,
         nonce: u64,
@@ -74,7 +77,7 @@ impl WeecordMessage {
         }
     }
 
-    pub fn new_echo(guild_id: Option<GuildId>, content: String, nonce: u64) -> Self {
+    pub fn new_echo(guild_id: Option<Id<GuildMarker>>, content: String, nonce: u64) -> Self {
         Self::LocalEcho {
             guild_id,
             content,
@@ -83,18 +86,18 @@ impl WeecordMessage {
         }
     }
 
-    pub fn id(&self) -> MessageId {
+    pub fn id(&self) -> Id<MessageMarker> {
         match self {
-            WeecordMessage::LocalEcho { nonce, .. } => MessageId::new(*nonce).expect("non zero"),
+            WeecordMessage::LocalEcho { nonce, .. } => Id::new(*nonce),
             WeecordMessage::Text(msg) => msg.id,
             #[cfg(feature = "images")]
             WeecordMessage::Image { msg, .. } => msg.id,
-            WeecordMessage::Notification { id, .. } => MessageId::new(*id).expect("non zero"),
+            WeecordMessage::Notification { id, .. } => Id::new(*id),
         }
     }
 }
 
-impl WeechatMessage<MessageId, State> for WeecordMessage {
+impl WeechatMessage<Id<MessageMarker>, State> for WeecordMessage {
     fn render(&self, state: &mut State) -> (String, String) {
         match self {
             WeecordMessage::LocalEcho {
@@ -159,7 +162,7 @@ impl WeechatMessage<MessageId, State> for WeecordMessage {
 
         let mut discord_msg_tags = |msg: &DiscordMessage| {
             let cache = &state.conn.cache;
-            let private = cache.private_channel(msg.channel_id).is_some();
+            let private = cache.channel(msg.channel_id).is_some();
 
             let mentioned = cache
                 .current_user()
@@ -224,7 +227,7 @@ impl WeechatMessage<MessageId, State> for WeecordMessage {
         }
     }
 
-    fn id(&self, _: &mut State) -> MessageId {
+    fn id(&self, _: &mut State) -> Id<MessageMarker> {
         self.id()
     }
 }
@@ -232,11 +235,11 @@ impl WeechatMessage<MessageId, State> for WeecordMessage {
 pub struct State {
     conn: ConnectionInner,
     config: Config,
-    unknown_members: Vec<UserId>,
+    unknown_members: Vec<Id<UserMarker>>,
 }
 
 pub struct WeecordRenderer {
-    inner: MessageRenderer<WeecordMessage, MessageId, State>,
+    inner: MessageRenderer<WeecordMessage, Id<MessageMarker>, State>,
     #[cfg(feature = "images")]
     config: Config,
     conn: ConnectionInner,
@@ -268,11 +271,11 @@ impl WeecordRenderer {
         self.inner.buffer_handle()
     }
 
-    pub fn set_last_read_id(&self, id: MessageId) {
+    pub fn set_last_read_id(&self, id: Id<MessageMarker>) {
         self.inner.set_last_read_id(id);
     }
     /// Clear the buffer and reprint all messages
-    pub fn redraw_buffer(&self, ignore_users: &[UserId]) {
+    pub fn redraw_buffer(&self, ignore_users: &[Id<UserMarker>]) {
         self.inner.state().borrow_mut().unknown_members.clear();
 
         self.inner.redraw_buffer();
@@ -407,8 +410,7 @@ impl WeecordRenderer {
                 .find(|msg_nonce| *msg_nonce == incoming_nonce);
 
             if let Some(local_echo_nonce) = local_echo_nonce {
-                self.inner
-                    .remove_msg(&MessageId::new(local_echo_nonce).expect("non zero"));
+                self.inner.remove_msg(&Id::new(local_echo_nonce));
                 self.redraw_buffer(&[]);
             }
         }
@@ -429,7 +431,7 @@ impl WeecordRenderer {
         }
     }
 
-    pub fn update_message<F>(&self, id: MessageId, f: F)
+    pub fn update_message<F>(&self, id: Id<MessageMarker>, f: F)
     where
         F: FnOnce(&mut DiscordMessage),
     {
@@ -454,7 +456,7 @@ impl WeecordRenderer {
         self.inner.messages()
     }
 
-    pub fn remove_msg(&self, id: MessageId) {
+    pub fn remove_msg(&self, id: Id<MessageMarker>) {
         self.inner.remove_msg(&id);
     }
 
@@ -465,9 +467,9 @@ impl WeecordRenderer {
 
     fn fetch_guild_members(
         &self,
-        unknown_members: &[UserId],
-        channel_id: ChannelId,
-        guild_id: GuildId,
+        unknown_members: &[Id<UserMarker>],
+        channel_id: Id<ChannelMarker>,
+        guild_id: Id<GuildMarker>,
     ) {
         if unknown_members.is_empty() {
             tracing::trace!("Skipping fetch_guild_members, no members requested");
@@ -482,7 +484,7 @@ impl WeecordRenderer {
                 .command(
                     &RequestGuildMembers::builder(guild_id)
                         .presences(true)
-                        .nonce(channel_id.0.to_string())
+                        .nonce(channel_id.to_string())
                         .user_ids(unknown_members.into_iter().take(100).collect::<Vec<_>>())
                         .expect("input is limited to 100 members"),
                 )
@@ -509,7 +511,7 @@ fn render_msg(
     config: &Config,
     msg: &DiscordMessage,
     include_at: bool,
-    unknown_members: &mut Vec<UserId>,
+    unknown_members: &mut Vec<Id<UserMarker>>,
 ) -> (String, String) {
     use twilight_model::channel::message::MessageType::*;
     let mut msg_content = crate::utils::discord_to_weechat(
@@ -655,7 +657,7 @@ fn format_reactions(msg: &DiscordMessage) -> StyledString {
 fn format_author(
     cache: &InMemoryCache,
     author: impl ShallowUser,
-    guild_id: Option<GuildId>,
+    guild_id: Option<Id<GuildMarker>>,
     include_at: bool,
 ) -> StyledString {
     guild_id

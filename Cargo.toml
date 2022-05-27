@@ -21,7 +21,6 @@ pcre = ["parsing/pcre"]
 onig = ["parsing/onig"]
 weecord-debug = ["accountable-refcell"]
 unlimited-logging = []
-tracing_tree = ["tracing-tree"]
 
 [dependencies.parsing]
 path = "parsing"
@@ -35,7 +34,7 @@ futures = "0.3.18"
 rand = "0.8.4"
 itertools = "0.10.1"
 serde_json = "1.0.72"
-parking_lot = "0.11.2"
+parking_lot = "0.12.0"
 time = { features = ["macros", "formatting", "local-offset"], git = "https://github.com/time-rs/time" }
 chrono = "0.4.19"
 
@@ -52,7 +51,7 @@ default-features = false
 features = ["native-tokio", "http1", "http2", "rustls-native-certs"]
 
 [dependencies.image]
-version = "0.23.14"
+version = "0.24.2"
 optional = true
 
 [dependencies.term-image]
@@ -61,10 +60,10 @@ git = "https://github.com/Noskcaj19/term-image"
 default-features = false
 
 [dependencies.syntect]
-version = "4.6.0"
+version = "5.0.0"
 optional = true
 default-features = false
-features = ["parsing", "assets", "dump-load", "regex-onig"]
+features = ["parsing", "default-themes", "default-syntaxes", "regex-onig"]
 
 [dependencies.serde]
 version = "1.0.130"
@@ -72,10 +71,6 @@ features = ["derive"]
 
 [dependencies.accountable-refcell]
 version = "0.2.1"
-optional = true
-
-[dependencies.tracing-tree]
-version = "0.1.11"
 optional = true
 
 [dependencies.tracing-subscriber]

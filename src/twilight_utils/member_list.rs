@@ -6,7 +6,7 @@ use twilight_model::{
         GroupId, MemberListId, MemberListItem, MemberListUpdate, MemberListUpdateOp,
     },
     guild::Role,
-    id::ChannelId,
+    id::{marker::ChannelMarker, Id},
 };
 
 pub trait GroupIdExt {
@@ -126,11 +126,11 @@ impl MemberList {
 
     pub fn get_list_for_channel(
         &self,
-        channel_id: ChannelId,
+        channel_id: Id<ChannelMarker>,
         cache: &InMemoryCache,
     ) -> Option<&Vec<MemberListItem>> {
         cache
-            .guild_channel(channel_id)
+            .channel(channel_id)
             .map(|ch| ch.member_list_id(cache))
             .and_then(|id| self.raw_lists.get(&id))
     }

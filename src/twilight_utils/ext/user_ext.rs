@@ -1,5 +1,5 @@
 use twilight_model::{
-    id::UserId,
+    id::{marker::UserMarker, Id},
     user::{CurrentUser, User},
 };
 
@@ -20,12 +20,12 @@ impl UserExt for CurrentUser {
 }
 
 pub trait ShallowUser {
-    fn id(&self) -> UserId;
+    fn id(&self) -> Id<UserMarker>;
     fn name(&self) -> String;
 }
 
 impl ShallowUser for &CurrentUser {
-    fn id(&self) -> UserId {
+    fn id(&self) -> Id<UserMarker> {
         self.id
     }
 
@@ -35,7 +35,7 @@ impl ShallowUser for &CurrentUser {
 }
 
 impl ShallowUser for &User {
-    fn id(&self) -> UserId {
+    fn id(&self) -> Id<UserMarker> {
         self.id
     }
 

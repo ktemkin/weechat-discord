@@ -3,11 +3,11 @@ use crate::{
     config::{Config, GuildConfig},
     discord::discord_connection::DiscordConnection,
     instance::Instance,
-    twilight_utils::ext::UserExt,
+    twilight_utils::ext::{ChannelExt, UserExt},
 };
 use std::borrow::Cow;
 use twilight_cache_inmemory::model::CachedGuild;
-use twilight_model::channel::GuildChannel;
+use twilight_model::channel::{Channel as TwilightChannel, ChannelType};
 use weechat::{
     buffer::Buffer,
     hooks::{Command, CommandRun, CommandSettings},
@@ -157,7 +157,7 @@ impl DiscordCommand {
 
                     Weechat::print(" Autojoin channels:");
                     for channel_id in guild_.guild_config.autojoin_channels().iter() {
-                        if let Some(channel) = cache.guild_channel(*channel_id) {
+                        if let Some(channel) = cache.channel(*channel_id) {
                             Weechat::print(&format!("  #{}", channel.name()));
                         } else {
                             Weechat::print(&format!("  #{:?}", channel_id));
@@ -165,7 +165,7 @@ impl DiscordCommand {
                     }
                     Weechat::print(" Watched channels:");
                     for channel_id in guild_.guild_config.watched_channels().iter() {
-                        if let Some(channel) = cache.guild_channel(*channel_id) {
+                        if let Some(channel) = cache.channel(*channel_id) {
                             Weechat::print(&format!("  #{}", channel.name()));
                         } else {
                             Weechat::print(&format!("  #{:?}", channel_id));
@@ -303,9 +303,9 @@ impl DiscordCommand {
             weecord_guild
                 .guild_config
                 .autojoin_channels_mut()
-                .push(channel.id());
+                .push(channel.id);
             weecord_guild.guild_config.persist(&weecord_guild.config);
-            tracing::info!(%weecord_guild.id, channel.id=%channel.id(), "Added channel to autojoin list");
+            tracing::info!(%weecord_guild.id, channel.id=%channel.id, "Added channel to autojoin list");
             Weechat::print(&format!(
                 "discord: added channel \"{}\" to autojoin list",
                 channel.name()
@@ -319,9 +319,9 @@ impl DiscordCommand {
         if let Some((guild, weecord_guild, channel)) = self.resolve_channel_and_guild(matches) {
             {
                 let mut autojoin = weecord_guild.guild_config.autojoin_channels_mut();
-                if let Some(pos) = autojoin.iter().position(|x| *x == channel.id()) {
+                if let Some(pos) = autojoin.iter().position(|x| *x == channel.id) {
                     autojoin.remove(pos);
-                    tracing::info!(%weecord_guild.id, channel.id=%channel.id(), "Removed channel from autojoin list");
+                    tracing::info!(%weecord_guild.id, channel.id=%channel.id, "Removed channel from autojoin list");
                     Weechat::print(&format!(
                         "discord: removed channel \"{}\" from autojoin list",
                         guild.name()
@@ -346,7 +346,7 @@ impl DiscordCommand {
     fn resolve_channel_and_guild(
         &self,
         matches: ParsedCommand,
-    ) -> Option<(CachedGuild, Guild, GuildChannel)> {
+    ) -> Option<(CachedGuild, Guild, TwilightChannel)> {
         let guild_name = matches
             .arg("guild_name")
             .expect("guild name is enforced by verification")
@@ -453,11 +453,15 @@ impl DiscordCommand {
         for channel in conn
             .cache
             .iter()
-            .private_channels()
+            .channels()
+            .filter(|ch| matches!(ch.kind, ChannelType::Private))
             .map(|c| c.value().clone())
         {
+            tracing::trace!("{:#?}", channel);
             let name = channel
                 .recipients
+                .clone()
+                .unwrap_or_default()
                 .iter()
                 .map(|u| crate::utils::clean_name_with_case(&u.tag()))
                 .collect::<Vec<_>>()
@@ -786,7 +790,7 @@ pub fn hook(connection: DiscordConnection, instance: Instance, config: Config) -
     .expect("Failed to create command");
 
     let _me_hook = CommandRun::new("/me", |_: &Weechat, buffer: &Buffer, command: Cow<str>| {
-        if let Some(text) = command.splitn(2, ' ').nth(1) {
+        if let Some(text) = command.split_once(' ').map(|x| x.1) {
             let string = format!("/discord me {}", text.trim_start());
             let _ = buffer.run_command(&string);
         }

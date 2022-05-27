@@ -1,9 +1,10 @@
 use crate::{
     discord::discord_connection::DiscordConnection,
-    twilight_utils::ext::{GuildChannelExt, UserExt},
+    twilight_utils::ext::{ChannelExt, UserExt},
     utils,
 };
 use std::borrow::Cow;
+use twilight_model::channel::ChannelType;
 use weechat::{
     buffer::Buffer,
     hooks::{Completion, CompletionHook},
@@ -26,7 +27,7 @@ impl Completions {
                 // `list` should not have any completion items
                 if completion
                     .arguments()
-                    .and_then(|a| a.splitn(3, ' ').nth(1).map(ToString::to_string))
+                    .and_then(|a| a.split(' ').nth(1).map(ToString::to_string))
                     .as_deref()
                     == Some("list")
                 {
@@ -55,7 +56,7 @@ impl Completions {
                 // Get the previous argument which should be the guild name
                 let guild_name = match completion
                     .arguments()
-                    .and_then(|a| a.splitn(4, ' ').nth(2).map(ToString::to_string))
+                    .and_then(|a| a.split(' ').nth(2).map(ToString::to_string))
                 {
                     Some(guild_name) => guild_name,
                     None => return Err(()),
@@ -72,12 +73,12 @@ impl Completions {
                     Some(guild) => {
                         if let Some(channels) = cache.guild_channels(guild.id()) {
                             for channel_id in channels.iter() {
-                                match cache.guild_channel(*channel_id) {
+                                match cache.channel(*channel_id) {
                                     Some(channel) => {
                                         if !channel.is_text_channel(&cache) {
                                             continue;
                                         }
-                                        completion.add(&utils::clean_name(channel.name()));
+                                        completion.add(&utils::clean_name(&channel.name()));
                                     },
                                     None => {
                                         tracing::trace!(id = %channel_id, "Unable to find channel in cache");
@@ -101,10 +102,17 @@ impl Completions {
             "Completion for Discord private channels",
             move |_: &Weechat, _: &Buffer, _: Cow<str>, completion: &Completion| {
                 if let Some(connection) = connection_clone.borrow().as_ref() {
-                    for channel in connection.cache.iter().private_channels() {
+                    for channel in connection
+                        .cache
+                        .iter()
+                        .channels()
+                        .filter(|ch| matches!(ch.kind, ChannelType::Private))
+                    {
                         completion.add(
                             &channel
                                 .recipients
+                                .clone()
+                                .unwrap_or_default()
                                 .iter()
                                 .map(|u| crate::utils::clean_name_with_case(&u.tag()))
                                 .collect::<Vec<_>>()

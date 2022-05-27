@@ -10,7 +10,10 @@ use std::{
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
-use twilight_model::id::{ChannelId, GuildId};
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker},
+    Id,
+};
 use weechat::{
     hooks::{SignalData, SignalHook},
     ReturnCode, Weechat,
@@ -221,7 +224,11 @@ impl Signals {
         }
     }
 
-    async fn ack(guild_id: Option<GuildId>, channel_id: ChannelId, channel: &Channel) {
+    async fn ack(
+        guild_id: Option<Id<GuildMarker>>,
+        channel_id: Id<ChannelMarker>,
+        channel: &Channel,
+    ) {
         tracing::trace!(?guild_id, ?channel_id, "Acking history");
 
         if let Err(e) = channel.ack().await {

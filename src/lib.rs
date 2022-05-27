@@ -11,7 +11,8 @@
     clippy::module_name_repetitions,
     clippy::non_ascii_literal,
     clippy::single_match_else,
-    clippy::enum_glob_use
+    clippy::enum_glob_use,
+    clippy::type_complexity
 )]
 #![deny(clippy::await_holding_refcell_ref, clippy::await_holding_lock)]
 use crate::{discord::discord_connection::DiscordConnection, instance::Instance, utils::Flag};
@@ -100,9 +101,9 @@ impl Plugin for Weecord {
 
 impl Weecord {
     fn env_filter(&self) -> EnvFilter {
-        let mut env_filter = EnvFilter::new(self.config.log_directive())
-            // Set the default log level to warn
-            .add_directive(LevelFilter::WARN.into());
+        let mut env_filter = EnvFilter::builder()
+            .with_default_directive(LevelFilter::WARN.into())
+            .parse_lossy(self.config.log_directive());
         // Allow `WEECORD_LOG` env to override
         for directive in std::env::var("WEECORD_LOG")
             .unwrap_or_default()
@@ -114,25 +115,12 @@ impl Weecord {
         env_filter
     }
 
-    #[cfg(not(feature = "tracing_tree"))]
     fn setup_tracing(&self) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         tracing_subscriber::fmt()
             .with_env_filter(self.env_filter())
             .with_writer(move || buffer::debug::Debug)
             .without_time()
             .try_init()
-    }
-
-    #[cfg(feature = "tracing_tree")]
-    fn setup_tracing(&self) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-        use tracing_subscriber::{layer::SubscriberExt, Layer, Registry};
-        let subscriber = Registry::default().with(
-            tracing_tree::HierarchicalLayer::new(2)
-                .with_ansi(true)
-                .with_writer(move || buffer::debug::Debug)
-                .and_then(self.env_filter()),
-        );
-        tracing::subscriber::set_global_default(subscriber).map_err(|err| err.into())
     }
 }
 

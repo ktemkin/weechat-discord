@@ -3,19 +3,22 @@ use crate::{
     twilight_utils::{ext::CachedMemberExt, Color, GroupIdExt},
 };
 use std::rc::Rc;
-use twilight_model::{gateway::payload::incoming::MemberListItem, id::GuildId};
+use twilight_model::{
+    gateway::payload::incoming::MemberListItem,
+    id::{marker::GuildMarker, Id},
+};
 use weechat::buffer::{BufferHandle, NickSettings};
 
 pub struct Nicklist {
     conn: ConnectionInner,
-    guild_id: Option<GuildId>,
+    guild_id: Option<Id<GuildMarker>>,
     handle: Rc<BufferHandle>,
 }
 
 impl Nicklist {
     pub fn new(
         conn: &ConnectionInner,
-        guild_id: Option<GuildId>,
+        guild_id: Option<Id<GuildMarker>>,
         handle: Rc<BufferHandle>,
     ) -> Nicklist {
         Nicklist {

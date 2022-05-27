@@ -1,92 +1,48 @@
-use crate::twilight_utils::{
-    ext::{GuildChannelExt, UserExt},
-    DynamicChannel,
-};
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::{
-    channel::{ChannelType, Group, GuildChannel, PrivateChannel},
+    channel::{permission_overwrite::PermissionOverwrite, Channel, ChannelType},
     gateway::payload::incoming::MemberListId,
     guild::Permissions,
-    id::{ChannelId, MessageId, RoleId},
+    id::{
+        marker::{RoleMarker, UserMarker},
+        Id,
+    },
 };
+
+use crate::twilight_utils::ext::UserExt;
 
 pub trait ChannelExt {
     fn name(&self) -> String;
-    fn id(&self) -> ChannelId;
-    fn kind(&self) -> ChannelType;
     fn can_send(&self, cache: &InMemoryCache) -> Option<bool>;
-    fn last_message_id(&self) -> Option<MessageId>;
+    fn has_permission(&self, cache: &InMemoryCache, permissions: Permissions) -> Option<bool>;
+    fn is_text_channel(&self, cache: &InMemoryCache) -> bool;
     fn member_list_id(&self, cache: &InMemoryCache) -> MemberListId;
+    fn member_has_permission(
+        &self,
+        cache: &InMemoryCache,
+        member_id: Id<UserMarker>,
+        permissions: Permissions,
+    ) -> Option<bool>;
+    fn permission_overwrites(&self, cache: &InMemoryCache) -> Vec<PermissionOverwrite>;
 }
 
-impl ChannelExt for DynamicChannel {
+impl ChannelExt for Channel {
     fn name(&self) -> String {
-        match self {
-            DynamicChannel::Guild(ch) => ChannelExt::name(ch),
-            DynamicChannel::Private(ch) => ch.name(),
-            DynamicChannel::Group(ch) => ch.name(),
-        }
-    }
-
-    fn id(&self) -> ChannelId {
-        match self {
-            DynamicChannel::Guild(ch) => ch.id(),
-            DynamicChannel::Private(ch) => ch.id(),
-            DynamicChannel::Group(ch) => ch.id(),
-        }
-    }
-
-    fn kind(&self) -> ChannelType {
-        match self {
-            DynamicChannel::Guild(ch) => ch.kind(),
-            DynamicChannel::Private(ch) => ch.kind(),
-            DynamicChannel::Group(ch) => ch.kind(),
-        }
-    }
-
-    fn can_send(&self, cache: &InMemoryCache) -> Option<bool> {
-        match self {
-            DynamicChannel::Guild(ch) => ch.can_send(cache),
-            DynamicChannel::Private(ch) => ch.can_send(cache),
-            DynamicChannel::Group(ch) => ch.can_send(cache),
-        }
-    }
-
-    fn last_message_id(&self) -> Option<MessageId> {
-        match self {
-            DynamicChannel::Guild(ch) => GuildChannelExt::last_message_id(ch),
-            DynamicChannel::Private(ch) => ch.last_message_id(),
-            DynamicChannel::Group(ch) => ch.last_message_id(),
-        }
-    }
-
-    fn member_list_id(&self, cache: &InMemoryCache) -> MemberListId {
-        match self {
-            DynamicChannel::Guild(ch) => ch.member_list_id(cache),
-            DynamicChannel::Private(ch) => ch.member_list_id(cache),
-            DynamicChannel::Group(ch) => ch.member_list_id(cache),
-        }
-    }
-}
-
-impl ChannelExt for GuildChannel {
-    fn name(&self) -> String {
-        self.name().to_owned()
-    }
-
-    fn id(&self) -> ChannelId {
-        self.id()
-    }
-
-    fn kind(&self) -> ChannelType {
-        match self {
-            GuildChannel::Category(c) => c.kind,
-            GuildChannel::Text(c) => c.kind,
-            GuildChannel::Voice(c) => c.kind,
-            GuildChannel::Stage(c) => c.kind,
-            GuildChannel::NewsThread(c) => c.kind,
-            GuildChannel::PrivateThread(c) => c.kind,
-            GuildChannel::PublicThread(c) => c.kind,
+        use twilight_model::channel::ChannelType::*;
+        match self.kind {
+            Group | Private => format!(
+                "DM with {}",
+                self.recipients
+                    .as_ref()
+                    .expect("channel to have receipients")
+                    .iter()
+                    .map(UserExt::tag)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            GuildText | GuildVoice | GuildCategory | GuildNews | GuildStore | GuildNewsThread
+            | GuildPublicThread | GuildPrivateThread | GuildStageVoice | GuildDirectory
+            | GuildForum => self.name.clone().expect("guild channel to have name"),
         }
     }
 
@@ -94,86 +50,120 @@ impl ChannelExt for GuildChannel {
         self.has_permission(cache, Permissions::SEND_MESSAGES)
     }
 
-    fn last_message_id(&self) -> Option<MessageId> {
-        GuildChannelExt::last_message_id(self)
+    fn has_permission(&self, cache: &InMemoryCache, permissions: Permissions) -> Option<bool> {
+        let current_user = cache.current_user()?;
+
+        self.member_has_permission(cache, current_user.id, permissions)
+    }
+
+    fn is_text_channel(&self, cache: &InMemoryCache) -> bool {
+        if !self
+            .has_permission(
+                cache,
+                Permissions::READ_MESSAGE_HISTORY | Permissions::VIEW_CHANNEL,
+            )
+            .unwrap_or(false)
+        {
+            return false;
+        }
+
+        match self.kind {
+            ChannelType::Private
+            | ChannelType::Group
+            | ChannelType::GuildNews
+            | ChannelType::GuildNewsThread
+            | ChannelType::GuildPublicThread
+            | ChannelType::GuildPrivateThread
+            | ChannelType::GuildText => true,
+            ChannelType::GuildCategory
+            | ChannelType::GuildStore
+            | ChannelType::GuildStageVoice
+            | ChannelType::GuildVoice
+            | ChannelType::GuildForum
+            | ChannelType::GuildDirectory => false,
+        }
     }
 
     fn member_list_id(&self, cache: &InMemoryCache) -> MemberListId {
-        let everyone_perms = cache
-            .role(RoleId(
-                self.guild_id()
-                    .expect("a guild channel must have a guild id")
-                    .0,
-            ))
-            .expect("Every guild has an @everyone role")
-            .permissions;
-        MemberListId::from_overwrites(everyone_perms, &self.permission_overwrites(cache))
-    }
-}
-
-impl ChannelExt for PrivateChannel {
-    fn name(&self) -> String {
-        format!(
-            "DM with {}",
-            self.recipients
-                .iter()
-                .map(UserExt::tag)
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    }
-
-    fn id(&self) -> ChannelId {
-        self.id
+        match self.kind {
+            ChannelType::Group | ChannelType::Private => MemberListId::Everyone,
+            ChannelType::GuildText
+            | ChannelType::GuildVoice
+            | ChannelType::GuildCategory
+            | ChannelType::GuildNews
+            | ChannelType::GuildStore
+            | ChannelType::GuildNewsThread
+            | ChannelType::GuildPublicThread
+            | ChannelType::GuildPrivateThread
+            | ChannelType::GuildStageVoice
+            | ChannelType::GuildDirectory
+            | ChannelType::GuildForum => {
+                let everyone_perms = cache
+                    .role(Id::cast(
+                        self.guild_id.expect("a guild channel must have a guild id"),
+                    ))
+                    .expect("Every guild has an @everyone role")
+                    .permissions;
+                MemberListId::from_overwrites(everyone_perms, &self.permission_overwrites(cache))
+            },
+        }
     }
 
-    fn kind(&self) -> ChannelType {
-        self.kind
+    fn member_has_permission(
+        &self,
+        cache: &InMemoryCache,
+        member_id: Id<UserMarker>,
+        permissions: Permissions,
+    ) -> Option<bool> {
+        let guild_id = self.guild_id?;
+        let member = cache.member(guild_id, member_id)?;
+
+        let roles: Vec<_> = member
+            .roles()
+            .iter()
+            .chain(Some(&guild_id.cast::<RoleMarker>()))
+            .flat_map(|&role_id| cache.role(role_id))
+            .map(|role| (role.id, role.permissions))
+            .collect();
+
+        let everyone_role = cache
+            .role(guild_id.cast::<RoleMarker>())
+            .map(|r| r.permissions)?;
+
+        let calc = twilight_util::permission_calculator::PermissionCalculator::new(
+            guild_id,
+            member_id,
+            everyone_role,
+            &roles,
+        );
+        let perms = calc.in_channel(self.kind, &self.permission_overwrites(cache));
+
+        if perms.contains(permissions) {
+            Some(true)
+        } else {
+            Some(false)
+        }
     }
 
-    fn can_send(&self, _cache: &InMemoryCache) -> Option<bool> {
-        Some(true)
-    }
-
-    fn last_message_id(&self) -> Option<MessageId> {
-        self.last_message_id
-    }
-
-    fn member_list_id(&self, _cache: &InMemoryCache) -> MemberListId {
-        MemberListId::Everyone
-    }
-}
-
-impl ChannelExt for Group {
-    fn name(&self) -> String {
-        format!(
-            "DM with {}",
-            self.recipients
-                .iter()
-                .map(UserExt::tag)
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    }
-
-    fn id(&self) -> ChannelId {
-        self.id
-    }
-
-    fn kind(&self) -> ChannelType {
-        self.kind
-    }
-
-    fn can_send(&self, cache: &InMemoryCache) -> Option<bool> {
-        let current_user = cache.current_user()?;
-        Some(self.recipients.iter().any(|rec| rec.id == current_user.id))
-    }
-
-    fn last_message_id(&self) -> Option<MessageId> {
-        self.last_message_id
-    }
-
-    fn member_list_id(&self, _cache: &InMemoryCache) -> MemberListId {
-        MemberListId::Everyone
+    fn permission_overwrites(&self, cache: &InMemoryCache) -> Vec<PermissionOverwrite> {
+        match self.kind {
+            ChannelType::GuildText
+            | ChannelType::Private
+            | ChannelType::GuildVoice
+            | ChannelType::Group
+            | ChannelType::GuildCategory
+            | ChannelType::GuildNews
+            | ChannelType::GuildStore
+            | ChannelType::GuildStageVoice
+            | ChannelType::GuildDirectory
+            | ChannelType::GuildForum => self.permission_overwrites.clone().unwrap_or_default(),
+            ChannelType::GuildNewsThread
+            | ChannelType::GuildPublicThread
+            | ChannelType::GuildPrivateThread => self
+                .parent_id
+                .and_then(|parent_id| cache.channel(parent_id))
+                .and_then(|c| c.permission_overwrites.clone())
+                .unwrap_or_default(),
+        }
     }
 }

@@ -4,7 +4,7 @@ use crate::{
     discord::discord_connection::ConnectionInner,
     instance::Instance,
     refcell::RefCell,
-    twilight_utils::ext::GuildChannelExt,
+    twilight_utils::ext::ChannelExt,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -12,8 +12,11 @@ use std::{
 };
 use twilight_cache_inmemory::model::CachedGuild as TwilightGuild;
 use twilight_model::{
-    channel::GuildChannel as TwilightChannel,
-    id::{ChannelId, GuildId},
+    channel::Channel as TwilightChannel,
+    id::{
+        marker::{ChannelMarker, GuildMarker},
+        Id,
+    },
 };
 use weechat::{
     buffer::{Buffer, BufferBuilder, BufferHandle},
@@ -23,7 +26,7 @@ use weechat::{
 pub struct GuildBuffer(BufferHandle);
 
 impl GuildBuffer {
-    pub fn new(name: &str, id: GuildId, instance: Instance) -> anyhow::Result<Self> {
+    pub fn new(name: &str, id: Id<GuildMarker>, instance: Instance) -> anyhow::Result<Self> {
         let clean_guild_name = crate::utils::clean_name(name);
         let buffer_name = format!("discord.{}", clean_guild_name);
 
@@ -67,7 +70,7 @@ impl GuildBuffer {
         buffer.set_short_name(name);
         buffer.set_localvar("type", "server");
         buffer.set_localvar("server", &clean_guild_name);
-        buffer.set_localvar("guild_id", &id.0.to_string());
+        buffer.set_localvar("guild_id", &id.to_string());
 
         Ok(GuildBuffer(handle))
     }
@@ -78,7 +81,7 @@ pub struct GuildInner {
     instance: Instance,
     guild: TwilightGuild,
     buffer: GuildBuffer,
-    channels: HashSet<ChannelId>,
+    channels: HashSet<Id<ChannelMarker>>,
     closed: bool,
 }
 
@@ -117,7 +120,7 @@ impl Drop for GuildInner {
 #[derive(Clone)]
 pub struct Guild {
     pub guild: TwilightGuild,
-    pub id: GuildId,
+    pub id: Id<GuildMarker>,
     inner: Rc<RefCell<GuildInner>>,
     pub guild_config: GuildConfig,
     pub config: Config,
@@ -226,7 +229,7 @@ impl Guild {
         if self.config.join_all() {
             if let Some(guild_channels) = conn.cache.guild_channels(self.id) {
                 for channel_id in guild_channels.iter() {
-                    if let Some(cached_channel) = conn.cache.guild_channel(*channel_id) {
+                    if let Some(cached_channel) = conn.cache.channel(*channel_id) {
                         if cached_channel.is_text_channel(&conn.cache) {
                             tracing::info!(
                                 "Joining discord mode channel: #{}",
@@ -240,7 +243,7 @@ impl Guild {
             }
         } else {
             for channel_id in self.guild_config.autojoin_channels() {
-                if let Some(cached_channel) = conn.cache.guild_channel(channel_id) {
+                if let Some(cached_channel) = conn.cache.channel(channel_id) {
                     if cached_channel.is_text_channel(&conn.cache) {
                         tracing::info!("Joining autojoin channel: #{}", cached_channel.name());
 
@@ -250,9 +253,9 @@ impl Guild {
             }
 
             for watched_channel_id in self.guild_config.watched_channels() {
-                if let Some(channel) = conn.cache.guild_channel(watched_channel_id) {
+                if let Some(channel) = conn.cache.channel(watched_channel_id) {
                     if let Some(read_state) = conn.cache.read_state(watched_channel_id) {
-                        if Some(read_state.last_message_id) == channel.last_message_id() {
+                        if Some(read_state.last_message_id) == channel.last_message_id {
                             continue;
                         };
                     } else {
@@ -280,8 +283,8 @@ impl Guild {
         channel: &TwilightChannel,
         inner: &mut GuildInner,
     ) -> anyhow::Result<Channel> {
-        let channel_id = channel.id();
-        let last_message_id = channel.last_message_id();
+        let channel_id = channel.id;
+        let last_message_id = channel.last_message_id;
         // TODO: Reuse buffers like guilds
         let channel = crate::buffer::channel::Channel::guild(
             channel,
@@ -313,7 +316,7 @@ impl Guild {
         self._join_channel(channel, &mut self.inner.borrow_mut())
     }
 
-    pub fn channels(&self) -> HashMap<ChannelId, Channel> {
+    pub fn channels(&self) -> HashMap<Id<ChannelMarker>, Channel> {
         let inner = self.inner.borrow();
         let channels = inner.instance.borrow_channels();
         channels

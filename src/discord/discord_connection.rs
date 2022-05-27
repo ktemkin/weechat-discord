@@ -4,7 +4,7 @@ use crate::{
     discord::{plugin_message::PluginMessage, typing_indicator::TypingEntry},
     instance::Instance,
     refcell::{Ref, RefCell},
-    twilight_utils::ext::{ChannelExt, MemberExt, UserExt},
+    twilight_utils::ext::{MemberExt, UserExt},
 };
 use anyhow::Result;
 use futures::StreamExt;
@@ -24,8 +24,11 @@ use twilight_gateway::{
 };
 use twilight_http::{error::ErrorType as HttpErrorType, Client as HttpClient};
 use twilight_model::{
-    channel::PrivateChannel,
-    id::{ChannelId, GuildId},
+    channel::Channel as TwilightChannel,
+    id::{
+        marker::{ChannelMarker, GuildMarker},
+        Id,
+    },
 };
 use weechat::Weechat;
 
@@ -36,7 +39,7 @@ pub struct ConnectionInner {
     pub cache: Arc<InMemoryCache>,
     pub http: Arc<HttpClient>,
     /// All channels we have requested events for
-    subscriptions: Arc<TokioMutex<HashMap<GuildId, Vec<ChannelId>>>>,
+    subscriptions: Arc<TokioMutex<HashMap<Id<GuildMarker>, Vec<Id<ChannelMarker>>>>>,
 }
 
 #[derive(Clone)]
@@ -60,7 +63,7 @@ impl DiscordConnection {
             let rt = runtime.clone();
             runtime.spawn(async move {
                 let http = Arc::new(HttpClient::new(token.to_owned()));
-                let (shard, mut events) = ShardBuilder::new(&token, Intents::all())
+                let (shard, mut events) = ShardBuilder::new(token, Intents::all())
                     .http_client(http.clone())
                     .build();
                 let shard = Arc::new(shard);
@@ -79,7 +82,7 @@ impl DiscordConnection {
                             .and_then(|s| s.downcast::<twilight_http::error::Error>().ok())
                         {
                             if let HttpErrorType::Response { status, .. } = e.kind() {
-                                if status.raw() == 401 {
+                                if status.get() == 401 {
                                     Weechat::spawn_from_thread(async move {
                                         Weechat::print(
                                             "discord: unauthorized: check that your token is valid",
@@ -174,7 +177,11 @@ impl DiscordConnection {
     }
 
     /// Add provided channel to the event subscription list (opcode 14, lazy guilds)
-    pub async fn send_guild_subscription(&self, guild_id: GuildId, channel_id: ChannelId) {
+    pub async fn send_guild_subscription(
+        &self,
+        guild_id: Id<GuildMarker>,
+        channel_id: Id<ChannelMarker>,
+    ) {
         let inner = self.0.borrow().as_ref().cloned();
         if let Some(inner) = inner {
             let mut subscriptions = inner.subscriptions.lock().await;
@@ -213,7 +220,8 @@ impl DiscordConnection {
                 if let Err(e) = inner
                     .shard
                     .send(
-                        super::custom_commands::GuildSubscription { d: info, op: 14 }.as_message(),
+                        super::custom_commands::GuildSubscription { d: info, op: 14 }
+                            .into_message(),
                     )
                     .await
                 {
@@ -275,13 +283,16 @@ impl DiscordConnection {
                     }
 
                     for channel_id in config.autojoin_private() {
-                        if let Some(channel) = conn.cache.private_channel(channel_id) {
+                        if let Some(channel) = conn.cache.channel(channel_id) {
                             if let Err(e) = DiscordConnection::create_private_channel(
-                                conn, &config, &instance, &channel,
+                                conn,
+                                &config,
+                                &instance,
+                                channel.value(),
                             ) {
                                 tracing::warn!(
                                     ?channel_id,
-                                    channel.name = %channel.name(),
+                                    channel.name = %channel.name.clone().expect("private channel to have name"),
                                     "Unable to join private channel: {}",
                                     e
                                 );
@@ -292,8 +303,8 @@ impl DiscordConnection {
                     }
 
                     for channel_id in config.watched_private() {
-                        if let Some(channel) = conn.cache.private_channel(channel_id) {
-                            if channel.last_message_id()
+                        if let Some(channel) = conn.cache.channel(channel_id) {
+                            if channel.last_message_id
                                 == conn
                                     .cache
                                     .read_state(channel_id)
@@ -307,7 +318,7 @@ impl DiscordConnection {
                             ) {
                                 tracing::warn!(
                                     ?channel_id,
-                                    channel.name = %channel.name(),
+                                    channel.name = %channel.name.clone().expect("private channel to have name"),
                                     "Unable to join private channel: {}",
                                     e
                                 );
@@ -324,13 +335,13 @@ impl DiscordConnection {
                             .contains_key(&message.channel_id)
                     {
                         let channel_id = message.channel_id;
-                        if let Some(channel) = conn.cache.private_channel(channel_id) {
+                        if let Some(channel) = conn.cache.channel(channel_id) {
                             if let Err(e) = DiscordConnection::create_private_channel(
                                 conn, &config, &instance, &channel,
                             ) {
                                 tracing::warn!(
                                     ?channel_id,
-                                    channel.name = %channel.name(),
+                                    channel.name = %channel.name.clone().expect("private channel to have name"),
                                     "Unable to join private channel: {}",
                                     e
                                 );
@@ -406,7 +417,7 @@ impl DiscordConnection {
                 PluginMessage::MemberChunk(member_chunk) => {
                     let channel_id = member_chunk
                         .nonce
-                        .and_then(|id| id.parse().ok().map(ChannelId));
+                        .and_then(|id| id.parse().ok().map(Id::new));
                     if !member_chunk.not_found.is_empty() {
                         tracing::warn!(
                             "Member chunk included unknown users: {:?}",
@@ -468,7 +479,7 @@ impl DiscordConnection {
                 },
                 PluginMessage::ChannelUpdate(channel_update) => {
                     if unsafe { Weechat::weechat() }.current_buffer().channel_id()
-                        == Some(channel_update.0.id())
+                        == Some(channel_update.0.id)
                     {
                         Weechat::bar_item_update("discord_slowmode_cooldown");
                     }
@@ -561,9 +572,9 @@ impl DiscordConnection {
         conn: &ConnectionInner,
         config: &Config,
         instance: &Instance,
-        channel: &PrivateChannel,
+        channel: &TwilightChannel,
     ) -> anyhow::Result<Channel> {
-        let last_message_id = channel.last_message_id();
+        let last_message_id = channel.last_message_id;
         let channel_id = channel.id;
         let channel = crate::buffer::channel::Channel::private(channel, conn, config, instance)?;
 

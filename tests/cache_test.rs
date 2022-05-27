@@ -1,6 +1,6 @@
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_model::{
-    channel::{Channel, ChannelType, GuildChannel, TextChannel},
+    channel::{Channel, ChannelType},
     datetime::Timestamp,
     gateway::payload::incoming::{
         ChannelCreate, GuildCreate, GuildEmojisUpdate, MemberAdd, RoleCreate,
@@ -9,14 +9,14 @@ use twilight_model::{
         DefaultMessageNotificationLevel, Emoji, ExplicitContentFilter, Guild, Member, MfaLevel,
         NSFWLevel, Permissions, Role, SystemChannelFlags, VerificationLevel,
     },
-    id::{ChannelId, EmojiId, GuildId, RoleId, UserId},
+    id::{marker::GuildMarker, Id},
     user::User,
 };
 
 #[tokio::test]
 async fn guild_emojis_updates() {
     let cache = InMemoryCache::new();
-    let guild_id = GuildId::new(1).expect("non zero");
+    let guild_id = Id::new(1);
     cache.update(&GuildCreate(fake_guild(guild_id)));
 
     assert!(
@@ -30,7 +30,7 @@ async fn guild_emojis_updates() {
     let emojis = vec![Emoji {
         animated: false,
         available: false,
-        id: EmojiId::new(1).expect("non zero"),
+        id: Id::new(1),
         managed: false,
         name: "".to_string(),
         require_colons: false,
@@ -43,15 +43,15 @@ async fn guild_emojis_updates() {
         .iter()
         .emojis()
         .filter(|e| e.guild_id() == guild_id)
-        .map(|e| e.key().clone())
+        .map(|e| *e.key())
         .collect::<Vec<_>>()
-        .contains(&EmojiId::new(1).expect("non zero")));
+        .contains(&Id::new(1)));
 }
 
 #[tokio::test]
 async fn guild_roles_updates() {
     let cache = InMemoryCache::new();
-    let guild_id = GuildId::new(1).expect("non zero");
+    let guild_id = Id::new(1);
     cache.update(&GuildCreate(fake_guild(guild_id)));
 
     assert!(
@@ -67,7 +67,7 @@ async fn guild_roles_updates() {
         icon: None,
         unicode_emoji: None,
         hoist: false,
-        id: RoleId::new(1).expect("non zero"),
+        id: Id::new(1),
         managed: false,
         mentionable: false,
         name: "foo".to_string(),
@@ -83,13 +83,13 @@ async fn guild_roles_updates() {
         .filter(|r| r.guild_id() == guild_id)
         .map(|r| r.key().to_owned())
         .collect::<Vec<_>>()
-        .contains(&RoleId::new(1).expect("non zero")));
+        .contains(&Id::new(1)));
 }
 
 #[tokio::test]
 async fn guild_members_updates() {
     let cache = InMemoryCache::new();
-    let guild_id = GuildId::new(1).expect("non zero");
+    let guild_id = Id::new(1);
     cache.update(&GuildCreate(fake_guild(guild_id)));
 
     assert!(
@@ -118,7 +118,7 @@ async fn guild_members_updates() {
             discriminator: 0,
             email: None,
             flags: None,
-            id: UserId::new(1).expect("non zero"),
+            id: Id::new(1),
             locale: None,
             mfa_enabled: None,
             name: "".to_string(),
@@ -127,6 +127,7 @@ async fn guild_members_updates() {
             system: None,
             verified: None,
         },
+        communication_disabled_until: None,
     };
     cache.update(&MemberAdd(member));
 
@@ -143,30 +144,45 @@ async fn guild_members_updates() {
 #[tokio::test]
 async fn guild_channels_updates() {
     let cache = InMemoryCache::new();
-    let guild_id = GuildId::new(1).expect("non zero");
+    let guild_id = Id::new(1);
     cache.update(&GuildCreate(fake_guild(guild_id)));
 
     assert!(cache.guild_channels(guild_id).unwrap().is_empty());
-    let channel = GuildChannel::Text(TextChannel {
+    let channel = Channel {
         guild_id: Some(guild_id),
-        id: ChannelId::new(1).expect("non zero"),
+        id: Id::new(1),
         kind: ChannelType::GuildText,
         last_message_id: None,
         last_pin_timestamp: None,
-        name: "".to_string(),
-        nsfw: false,
-        permission_overwrites: vec![],
+        name: Some("".to_string()),
+        nsfw: Some(false),
+        permission_overwrites: Some(vec![]),
         parent_id: None,
-        position: 0,
+        position: Some(0),
         rate_limit_per_user: None,
         topic: None,
-    });
-    cache.update(&ChannelCreate(Channel::Guild(channel)));
+        application_id: None,
+        bitrate: None,
+        default_auto_archive_duration: None,
+        icon: None,
+        invitable: None,
+        member: None,
+        member_count: None,
+        message_count: None,
+        newly_created: None,
+        owner_id: None,
+        recipients: None,
+        rtc_region: None,
+        thread_metadata: None,
+        user_limit: None,
+        video_quality_mode: None,
+    };
+    cache.update(&ChannelCreate(channel));
 
     assert_eq!(cache.guild_channels(guild_id).unwrap().len(), 1);
 }
 
-fn fake_guild(guild_id: GuildId) -> Guild {
+fn fake_guild(guild_id: Id<GuildMarker>) -> Guild {
     Guild {
         afk_channel_id: None,
         afk_timeout: 0,
@@ -193,7 +209,7 @@ fn fake_guild(guild_id: GuildId) -> Guild {
         mfa_level: MfaLevel::None,
         name: "".to_string(),
         nsfw_level: NSFWLevel::Default,
-        owner_id: UserId::new(1).expect("non zero"),
+        owner_id: Id::new(1),
         owner: None,
         permissions: None,
         preferred_locale: "".to_string(),
@@ -214,5 +230,6 @@ fn fake_guild(guild_id: GuildId) -> Guild {
         voice_states: Default::default(),
         widget_channel_id: None,
         widget_enabled: None,
+        premium_progress_bar_enabled: false,
     }
 }

@@ -1,7 +1,7 @@
 use crate::{config::Charset, Weechat2};
 use anyhow::Context;
-use image::{DynamicImage, GenericImageView, ImageFormat};
-use std::borrow::Cow;
+use image::{DynamicImage, ImageFormat};
+use std::{borrow::Cow, fmt::Write};
 use tokio::runtime::Runtime;
 use twilight_model::channel::Message;
 
@@ -87,11 +87,13 @@ pub fn render_img(img: &DynamicImage, charset: Charset) -> String {
         for x in y {
             let fg = x.fg.as_256().0;
             let bg = x.bg.as_256().0;
-            out.push_str(&format!(
+            write!(
+                out,
                 "{}{}",
                 Weechat2::color(&format!("{},{}", fg, bg)),
                 x.ch,
-            ));
+            )
+            .expect("writing to a string to succeed");
 
             out.push_str(Weechat2::color("reset"));
         }

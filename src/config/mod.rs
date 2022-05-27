@@ -7,7 +7,10 @@ use std::{
     rc::{Rc, Weak},
 };
 use tracing_subscriber::EnvFilter;
-use twilight_model::id::{ChannelId, GuildId};
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker},
+    Id,
+};
 use weechat::{
     config::{
         BooleanOptionSettings, Conf, Config as WeechatConfig, ConfigSection, ConfigSectionSettings,
@@ -98,9 +101,9 @@ pub struct InnerConfig {
     pub color: ColorConfig,
     pub token: Option<String>,
     pub log_directive: String,
-    pub guilds: HashMap<GuildId, GuildConfig>,
-    pub autojoin_private: Vec<ChannelId>,
-    pub watched_private: Vec<ChannelId>,
+    pub guilds: HashMap<Id<GuildMarker>, GuildConfig>,
+    pub autojoin_private: Vec<Id<ChannelMarker>>,
+    pub watched_private: Vec<Id<ChannelMarker>>,
     // Should we use value of weechat.history.max_buffer_lines_number here instead?
     pub max_buffer_messages: i32,
     pub send_typing: bool,
@@ -439,7 +442,7 @@ impl Config {
                                 .expect("Outer config has outlived inner config");
                             let guilds = &mut inner.borrow_mut().guilds;
 
-                            if let Ok(guild_id) = guild_id.parse().map(GuildId) {
+                            if let Ok(guild_id) = guild_id.parse().map(Id::new) {
                                 guilds
                                     .entry(guild_id)
                                     .or_insert_with(|| GuildConfig::new(section, guild_id));
@@ -476,11 +479,11 @@ impl Config {
         }
     }
 
-    pub(crate) fn clean_channels_option(option: &StringOption) -> Vec<ChannelId> {
+    pub(crate) fn clean_channels_option(option: &StringOption) -> Vec<Id<ChannelMarker>> {
         let mut channels: Vec<_> = option
             .value()
             .split(',')
-            .flat_map(|ch| ch.parse().map(ChannelId))
+            .flat_map(|ch| ch.parse().map(Id::new))
             .collect();
 
         channels.sort();
@@ -489,7 +492,7 @@ impl Config {
         option.set(
             &channels
                 .iter()
-                .map(|c| c.0.to_string())
+                .map(|c| c.to_string())
                 .collect::<Vec<_>>()
                 .join(","),
             false,
@@ -557,15 +560,15 @@ impl Config {
         self.inner.borrow().color.nick_suffix_color.clone()
     }
 
-    pub fn guilds(&self) -> HashMap<GuildId, GuildConfig> {
+    pub fn guilds(&self) -> HashMap<Id<GuildMarker>, GuildConfig> {
         self.inner.borrow().guilds.clone()
     }
 
-    pub fn autojoin_private(&self) -> Vec<ChannelId> {
+    pub fn autojoin_private(&self) -> Vec<Id<ChannelMarker>> {
         self.inner.borrow().autojoin_private.clone()
     }
 
-    pub fn watched_private(&self) -> Vec<ChannelId> {
+    pub fn watched_private(&self) -> Vec<Id<ChannelMarker>> {
         self.inner.borrow().watched_private.clone()
     }
 
@@ -612,7 +615,7 @@ impl Config {
                 &self
                     .autojoin_private()
                     .iter()
-                    .map(|c| c.0.to_string())
+                    .map(|c| c.to_string())
                     .collect::<Vec<_>>()
                     .join(","),
                 false,

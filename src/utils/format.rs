@@ -8,23 +8,26 @@ use parsing::MarkdownNode;
 use std::{rc::Rc, sync::RwLock};
 use time::{macros::format_description, Duration, OffsetDateTime};
 use twilight_cache_inmemory::InMemoryCache;
-use twilight_model::id::{ChannelId, EmojiId, GuildId, RoleId, UserId};
+use twilight_model::id::{
+    marker::{GuildMarker, UserMarker},
+    Id,
+};
 
 struct FormattingState<'a> {
     cache: &'a InMemoryCache,
-    guild_id: Option<GuildId>,
+    guild_id: Option<Id<GuildMarker>>,
     show_unknown_ids: bool,
     show_formatting_chars: bool,
-    unknown_members: &'a mut Vec<UserId>,
+    unknown_members: &'a mut Vec<Id<UserMarker>>,
 }
 
 pub fn discord_to_weechat(
     msg: &str,
     cache: &InMemoryCache,
-    guild_id: Option<GuildId>,
+    guild_id: Option<Id<GuildMarker>>,
     show_formatting_chars: bool,
     show_unknown_ids: bool,
-    unknown_members: &mut Vec<UserId>,
+    unknown_members: &mut Vec<Id<UserMarker>>,
 ) -> StyledString {
     let mut state = FormattingState {
         cache,
@@ -170,7 +173,7 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
             out
         },
         UserMention(id) => {
-            let id = UserId::new(*id).expect("non zero");
+            let id = Id::new(*id);
 
             let replacement = if let Some(guild_id) = state.guild_id {
                 state.cache.member(guild_id, id).map(|member| {
@@ -189,7 +192,7 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
                 state.unknown_members.push(id);
 
                 if state.show_unknown_ids {
-                    format!("@{}", id.0).into()
+                    format!("@{}", id).into()
                 } else {
                     "@unknown-user".to_owned().into()
                 }
@@ -198,13 +201,13 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
             out
         },
         ChannelMention(id) => {
-            let id = ChannelId::new(*id).expect("non zero");
-            if let Some(channel) = state.cache.guild_channel(id) {
+            let id = Id::new(*id);
+            if let Some(channel) = state.cache.channel(id) {
                 out.push_str(&format!("#{}", channel.name()));
-            } else if let Some(channel) = state.cache.private_channel(id) {
-                out.push_str(&format!("#{}", channel.name()));
-            } else if let Some(channel) = state.cache.group(id) {
-                out.push_str(&format!("#{}", channel.name()));
+            // } else if let Some(channel) = state.cache.channel(id) {
+            //     out.push_str(&format!("#{}", channel.name()));
+            // } else if let Some(channel) = state.cache.group(id) {
+            //     out.push_str(&format!("#{}", channel.name()));
             } else {
                 out.push_str("#unknown-channel");
             }
@@ -212,7 +215,7 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
             out
         },
         Emoji(_, id) => {
-            if let Some(emoji) = state.cache.emoji(EmojiId::new(*id).expect("non zero")) {
+            if let Some(emoji) = state.cache.emoji(Id::new(*id)) {
                 out.push_str(&format!(":{}:", emoji.name()));
             } else {
                 tracing::trace!(emoji.id=?id, "Emoji not in cache");
@@ -221,7 +224,7 @@ fn discord_to_weechat_reducer(node: &MarkdownNode, state: &mut FormattingState) 
             out
         },
         RoleMention(id) => {
-            if let Some(role) = state.cache.role(RoleId::new(*id).expect("non zero")) {
+            if let Some(role) = state.cache.role(Id::new(*id)) {
                 let color = Style::color(&Color::new(role.color).as_8bit().to_string());
                 out.push_style(color.clone());
                 out.push_str(&format!("@{}", role.name));
@@ -371,6 +374,7 @@ fn humanize_duration(duration: Duration) -> String {
 mod syntax {
     use crate::{twilight_utils::Color, Weechat2};
     use once_cell::sync::Lazy;
+    use std::fmt::Write;
     use syntect::{
         easy::HighlightLines,
         highlighting::{Style, ThemeSet},
@@ -386,7 +390,8 @@ mod syntax {
             let mut h = HighlightLines::new(syntax, &TS.themes["Solarized (dark)"]);
             let mut out = String::new();
             for line in LinesWithEndings::from(src) {
-                let ranges: Vec<(Style, &str)> = h.highlight(line, &PS);
+                let ranges: Vec<(Style, &str)> =
+                    h.highlight_line(line, &PS).expect("default theme to work");
                 out.push_str(&syntect_as_weechat_escaped(&ranges[..]));
             }
             out
@@ -404,7 +409,7 @@ mod syntax {
             let fg = Color::from_rgb(fg.r, fg.g, fg.b);
             let colorstr = format!("{}", fg.as_8bit());
             let color = Weechat2::color(&colorstr);
-            o.push_str(&format!("{}{}{}", color, str, resetcolor));
+            write!(o, "{}{}{}", color, str, resetcolor).expect("writing to a string to succeed");
         }
         o
     }
@@ -440,11 +445,11 @@ mod tests {
     use super::discord_to_weechat;
     use twilight_cache_inmemory::InMemoryCache;
     use twilight_model::{
-        channel::{Channel, ChannelType, GuildChannel, TextChannel},
+        channel::{Channel, ChannelType},
         datetime::Timestamp,
         gateway::payload::incoming::{ChannelCreate, GuildEmojisUpdate, MemberAdd, RoleCreate},
         guild::{Emoji, Member, Permissions, Role},
-        id::{ChannelId, EmojiId, GuildId, RoleId, UserId},
+        id::{marker::GuildMarker, Id},
         user::User,
     };
 
@@ -452,7 +457,11 @@ mod tests {
         format_with_cache(str, &InMemoryCache::new(), None)
     }
 
-    fn format_with_cache(str: &str, cache: &InMemoryCache, guild_id: Option<GuildId>) -> String {
+    fn format_with_cache(
+        str: &str,
+        cache: &InMemoryCache,
+        guild_id: Option<Id<GuildMarker>>,
+    ) -> String {
         discord_to_weechat(str, cache, guild_id, true, false, &mut Vec::new()).build()
     }
 
@@ -492,7 +501,7 @@ mod tests {
         let role = Role {
             color: 0,
             hoist: false,
-            id: RoleId::new(1).expect("non zero"),
+            id: Id::new(1),
             icon: None,
             unicode_emoji: None,
             managed: false,
@@ -503,7 +512,7 @@ mod tests {
             tags: None,
         };
         cache.update(&RoleCreate {
-            guild_id: GuildId::new(1).expect("non zero"),
+            guild_id: Id::new(1),
             role,
         });
 
@@ -516,22 +525,37 @@ mod tests {
     #[test]
     fn channels() {
         let cache = InMemoryCache::new();
-        let guild_id = Some(GuildId::new(1).expect("non zero"));
-        let channel = GuildChannel::Text(TextChannel {
+        let guild_id = Some(Id::new(1));
+        let channel = Channel {
             guild_id,
-            id: ChannelId::new(1).expect("non zero"),
+            id: Id::new(1),
             kind: ChannelType::GuildText,
             last_message_id: None,
             last_pin_timestamp: None,
-            name: "channel-one".to_string(),
-            nsfw: false,
-            permission_overwrites: vec![],
+            name: Some("channel-one".to_string()),
+            nsfw: Some(false),
+            permission_overwrites: Some(vec![]),
             parent_id: None,
-            position: 0,
+            position: Some(0),
             rate_limit_per_user: None,
             topic: None,
-        });
-        cache.update(&ChannelCreate(Channel::Guild(channel)));
+            application_id: None,
+            bitrate: None,
+            default_auto_archive_duration: None,
+            icon: None,
+            invitable: None,
+            member: None,
+            member_count: None,
+            message_count: None,
+            newly_created: None,
+            owner_id: None,
+            recipients: None,
+            rtc_region: None,
+            thread_metadata: None,
+            user_limit: None,
+            video_quality_mode: None,
+        };
+        cache.update(&ChannelCreate(channel));
 
         assert_eq!(
             format_with_cache("hello <#1>!", &cache, guild_id),
@@ -542,7 +566,7 @@ mod tests {
     // TODO: Expand this, to test members, users, show_unkown, and the unknown_users aspects
     #[test]
     fn users() {
-        let guild_id = GuildId::new(1).expect("non zero");
+        let guild_id = Id::new(1);
 
         let cache = InMemoryCache::new();
         let member = Member {
@@ -563,7 +587,7 @@ mod tests {
                 discriminator: 1234,
                 email: None,
                 flags: None,
-                id: UserId::new(1).expect("non zero"),
+                id: Id::new(1),
                 locale: None,
                 mfa_enabled: None,
                 name: "random-user".to_string(),
@@ -572,6 +596,7 @@ mod tests {
                 system: None,
                 verified: None,
             },
+            communication_disabled_until: None,
         };
         cache.update(&MemberAdd(member));
 
@@ -592,7 +617,7 @@ mod tests {
             Emoji {
                 animated: false,
                 available: false,
-                id: EmojiId::new(1).expect("non zero"),
+                id: Id::new(1),
                 managed: false,
                 name: "random-emoji".to_string(),
                 require_colons: false,
@@ -602,7 +627,7 @@ mod tests {
             Emoji {
                 animated: false,
                 available: false,
-                id: EmojiId::new(2).expect("non zero"),
+                id: Id::new(2),
                 managed: false,
                 name: "emoji-two".to_string(),
                 require_colons: false,
@@ -612,7 +637,7 @@ mod tests {
         ];
         cache.update(&GuildEmojisUpdate {
             emojis,
-            guild_id: GuildId::new(1).expect("non zero"),
+            guild_id: Id::new(1),
         });
 
         assert_eq!(
@@ -632,7 +657,7 @@ mod tests {
             let emoji = Emoji {
                 animated: false,
                 available: false,
-                id: EmojiId::new(i as u64 + 1).expect("non zero"),
+                id: Id::new(i as u64 + 1),
                 managed: false,
                 name: n.to_string(),
                 require_colons: false,
@@ -643,7 +668,7 @@ mod tests {
         }
         cache.update(&GuildEmojisUpdate {
             emojis,
-            guild_id: GuildId::new(1).expect("non zero"),
+            guild_id: Id::new(1),
         });
         let src = "<:one:1><:two:2><:one:1><:three:3><:four:4><:five:5><:one:1><:six:6><:one:1>";
         let target = ":one::two::one::three::four::five::one::six::one:";

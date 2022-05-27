@@ -7,7 +7,10 @@ use std::{
     collections::HashMap,
     rc::{Rc, Weak},
 };
-use twilight_model::id::{ChannelId, GuildId};
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker},
+    Id,
+};
 use weechat::{
     config::{BooleanOptionSettings, ConfigSection, StringOption, StringOptionSettings},
     Weechat,
@@ -16,9 +19,9 @@ use weechat::{
 #[derive(Clone, Debug)]
 pub struct GuildConfigInner {
     autoconnect: bool,
-    autojoin: Vec<ChannelId>,
-    watched: Vec<ChannelId>,
-    channel_renames: HashMap<ChannelId, String>,
+    autojoin: Vec<Id<ChannelMarker>>,
+    watched: Vec<Id<ChannelMarker>>,
+    channel_renames: HashMap<Id<ChannelMarker>, String>,
 }
 
 impl GuildConfigInner {
@@ -35,12 +38,12 @@ impl GuildConfigInner {
 #[derive(Clone, Debug)]
 pub struct GuildConfig {
     inner: Rc<RefCell<GuildConfigInner>>,
-    id: GuildId,
+    id: Id<GuildMarker>,
 }
 
 impl GuildConfig {
     /// Creates a guild config not attached to any weechat options
-    pub fn new_autoconnect_detached(id: GuildId) -> Self {
+    pub fn new_autoconnect_detached(id: Id<GuildMarker>) -> Self {
         let mut inner = GuildConfigInner::new();
         inner.autoconnect = true;
         Self {
@@ -49,13 +52,13 @@ impl GuildConfig {
         }
     }
 
-    pub fn new(guild_section: &mut ConfigSection, id: GuildId) -> Self {
+    pub fn new(guild_section: &mut ConfigSection, id: Id<GuildMarker>) -> Self {
         let inner = Rc::new(RefCell::new(GuildConfigInner::new()));
 
         let weak_inner = Rc::downgrade(&inner);
 
         let inner_clone = Weak::clone(&weak_inner);
-        let autoconnect = BooleanOptionSettings::new(format!("{}.autoconnect", id.0))
+        let autoconnect = BooleanOptionSettings::new(format!("{}.autoconnect", id))
             .description("Should this guild autoconnect")
             .set_change_callback(move |_, option| {
                 let inner = inner_clone.upgrade().expect("Config has outlived guild");
@@ -68,7 +71,7 @@ impl GuildConfig {
             .expect("Unable to create autoconnect option");
 
         let inner_clone = Weak::clone(&weak_inner);
-        let autojoin_channels = StringOptionSettings::new(format!("{}.autojoin", id.0))
+        let autojoin_channels = StringOptionSettings::new(format!("{}.autojoin", id))
             .description("The list of all channels to automatically join")
             .set_check_callback(Config::check_channels_option)
             .set_change_callback(move |_, option| {
@@ -83,7 +86,7 @@ impl GuildConfig {
             .expect("Unable to create autojoin channels option");
 
         let inner_clone = Weak::clone(&weak_inner);
-        let watched_channels = StringOptionSettings::new(format!("{}.watched", id.0))
+        let watched_channels = StringOptionSettings::new(format!("{}.watched", id))
             .description("The list of all channels to join when unread")
             .set_check_callback(Config::check_channels_option)
             .set_change_callback(move |_, option| {
@@ -98,7 +101,7 @@ impl GuildConfig {
             .expect("Unable to create watched channels option");
 
         let inner_clone = Weak::clone(&weak_inner);
-        let channel_renames = StringOptionSettings::new(format!("{}.channel_renames", id.0))
+        let channel_renames = StringOptionSettings::new(format!("{}.channel_renames", id))
             .description("The mapping of channels to rename in weechat")
             .default_value("{}")
             .set_check_callback(|_: &Weechat, _: &StringOption, value: Cow<str>| {
@@ -119,11 +122,15 @@ impl GuildConfig {
     }
 
     // Parses the channel renames format (current a json map)
-    fn parse_channel_id_mapping(value: &str) -> anyhow::Result<HashMap<ChannelId, String>> {
-        Ok(serde_json::from_str::<HashMap<ChannelId, String>>(value)?)
+    fn parse_channel_id_mapping(value: &str) -> anyhow::Result<HashMap<Id<ChannelMarker>, String>> {
+        Ok(serde_json::from_str::<HashMap<Id<ChannelMarker>, String>>(
+            value,
+        )?)
     }
 
-    fn serialize_channel_id_mapping(value: &HashMap<ChannelId, String>) -> anyhow::Result<String> {
+    fn serialize_channel_id_mapping(
+        value: &HashMap<Id<ChannelMarker>, String>,
+    ) -> anyhow::Result<String> {
         Ok(serde_json::to_string(value)?)
     }
 
@@ -135,19 +142,19 @@ impl GuildConfig {
         self.inner.borrow_mut().autoconnect = autoconnect;
     }
 
-    pub fn autojoin_channels(&self) -> Vec<ChannelId> {
+    pub fn autojoin_channels(&self) -> Vec<Id<ChannelMarker>> {
         self.inner.borrow().autojoin.clone()
     }
 
-    pub fn autojoin_channels_mut(&self) -> RefMut<Vec<ChannelId>> {
+    pub fn autojoin_channels_mut(&self) -> RefMut<Vec<Id<ChannelMarker>>> {
         RefMut::map(self.inner.borrow_mut(), |i| &mut i.autojoin)
     }
 
-    pub fn watched_channels(&self) -> Vec<ChannelId> {
+    pub fn watched_channels(&self) -> Vec<Id<ChannelMarker>> {
         self.inner.borrow().watched.clone()
     }
 
-    pub fn channel_renames(&self) -> HashMap<ChannelId, String> {
+    pub fn channel_renames(&self) -> HashMap<Id<ChannelMarker>, String> {
         self.inner.borrow().channel_renames.clone()
     }
 
@@ -164,7 +171,7 @@ impl GuildConfig {
             &self
                 .autojoin_channels()
                 .iter()
-                .map(|c| c.0.to_string())
+                .map(|c| c.to_string())
                 .collect::<Vec<_>>()
                 .join(","),
             false,
@@ -177,7 +184,7 @@ impl GuildConfig {
             &self
                 .watched_channels()
                 .iter()
-                .map(|c| c.0.to_string())
+                .map(|c| c.to_string())
                 .collect::<Vec<_>>()
                 .join(","),
             false,

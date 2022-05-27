@@ -26,7 +26,7 @@ impl MessageExt for Message {
         self.edited_timestamp = update.edited_timestamp;
         for user in update.mentions.unwrap_or_default() {
             let mention = Mention {
-                avatar: user.avatar.clone(),
+                avatar: user.avatar,
                 bot: user.bot,
                 discriminator: user.discriminator,
                 id: user.id,

@@ -2,13 +2,9 @@ use crate::{
     config::Config,
     discord::discord_connection::ConnectionInner,
     instance::Instance,
-    match_map,
     nicklist::Nicklist,
     refcell::RefCell,
-    twilight_utils::{
-        ext::{CacheExt, ChannelExt, GuildChannelExt, MessageExt},
-        DynamicChannel,
-    },
+    twilight_utils::ext::{ChannelExt, MessageExt},
     weecord_renderer::{WeecordMessage, WeecordRenderer},
 };
 use parsing::{Emoji, LineEdit};
@@ -17,13 +13,13 @@ use std::{borrow::Cow, rc::Rc};
 use twilight_cache_inmemory::{model::CachedGuild as TwilightGuild, InMemoryCache};
 use twilight_http::request::channel::reaction::RequestReactionType;
 use twilight_model::{
-    channel::{
-        message::MessageReaction, GuildChannel as TwilightGuildChannel, Message,
-        PrivateChannel as TwilightPrivateChannel, Reaction,
-    },
+    channel::{message::MessageReaction, Channel as TwilightChannel, Message, Reaction},
     gateway::payload::incoming::{MemberListItem, MessageUpdate},
     guild::Permissions,
-    id::{ChannelId, EmojiId, GuildId, MessageId, UserId},
+    id::{
+        marker::{ChannelMarker, GuildMarker, MessageMarker, UserMarker},
+        Id,
+    },
     user::User,
 };
 use weechat::{
@@ -43,8 +39,8 @@ impl ChannelBuffer {
         topic: Option<String>,
         nick: &str,
         guild_name: &str,
-        id: ChannelId,
-        guild_id: GuildId,
+        id: Id<ChannelMarker>,
+        guild_id: Id<GuildMarker>,
         conn: &ConnectionInner,
         config: &Config,
         instance: &Instance,
@@ -108,8 +104,8 @@ impl ChannelBuffer {
         buffer.set_localvar("type", "channel");
         buffer.set_localvar("server", &clean_guild_name);
         buffer.set_localvar("channel", &clean_channel_name);
-        buffer.set_localvar("guild_id", &guild_id.0.to_string());
-        buffer.set_localvar("channel_id", &id.0.to_string());
+        buffer.set_localvar("guild_id", &guild_id.to_string());
+        buffer.set_localvar("channel_id", &id.to_string());
         buffer.set_localvar("weecord_type", "channel");
 
         buffer.enable_hotlist();
@@ -123,15 +119,25 @@ impl ChannelBuffer {
     }
 
     pub fn private(
-        channel: &TwilightPrivateChannel,
+        channel: &TwilightChannel,
         conn: &ConnectionInner,
         config: &Config,
         instance: &Instance,
     ) -> anyhow::Result<Self> {
         let id = channel.id;
 
-        let short_name = Self::short_name(&channel.recipients);
-        let buffer_id = Self::buffer_id(&channel.recipients);
+        let short_name = Self::short_name(
+            channel
+                .recipients
+                .as_ref()
+                .expect("private channel to have recipients"),
+        );
+        let buffer_id = Self::buffer_id(
+            channel
+                .recipients
+                .as_ref()
+                .expect("private channel to have recipients"),
+        );
 
         let weechat = unsafe { Weechat::weechat() };
 
@@ -166,14 +172,17 @@ impl ChannelBuffer {
 
         buffer.set_localvar("nick", &Self::nick(&conn.cache));
 
-        let full_name = channel.name();
+        let full_name = channel
+            .name
+            .clone()
+            .unwrap_or_else(|| "Unknown Name".to_owned());
 
         buffer.set_short_name(&short_name);
         buffer.set_full_name(&full_name);
         buffer.set_title(&full_name);
         // This causes the buffer to be indented, what are the implications for not setting it?
         // buffer.set_localvar("type", "private");
-        buffer.set_localvar("channel_id", &id.0.to_string());
+        buffer.set_localvar("channel_id", &id.to_string());
 
         buffer.enable_nicklist();
 
@@ -279,7 +288,7 @@ impl ChannelBuffer {
         self.renderer.redraw_buffer(&[]);
     }
 
-    pub fn remove_msg(&self, id: MessageId) {
+    pub fn remove_msg(&self, id: Id<MessageMarker>) {
         self.renderer.remove_msg(id);
     }
 
@@ -287,7 +296,7 @@ impl ChannelBuffer {
         self.renderer.apply_message_update(update);
     }
 
-    pub fn redraw_buffer(&self, ignore_users: &[UserId]) {
+    pub fn redraw_buffer(&self, ignore_users: &[Id<UserMarker>]) {
         self.renderer.redraw_buffer(ignore_users);
     }
 }
@@ -323,8 +332,8 @@ impl Drop for ChannelInner {
 
 #[derive(Clone)]
 pub struct Channel {
-    pub id: ChannelId,
-    guild_id: Option<GuildId>,
+    pub id: Id<ChannelMarker>,
+    guild_id: Option<Id<GuildMarker>>,
     inner: Rc<RefCell<ChannelInner>>,
     config: Config,
     private: bool,
@@ -336,7 +345,7 @@ impl Channel {
     }
 
     pub fn guild(
-        channel: &TwilightGuildChannel,
+        channel: &TwilightChannel,
         guild: &TwilightGuild,
         conn: &ConnectionInner,
         config: &Config,
@@ -349,14 +358,19 @@ impl Channel {
         let channel_name = config
             .guilds()
             .get(&guild.id())
-            .and_then(|g| g.channel_renames().get(&channel.id()).cloned())
-            .unwrap_or_else(|| channel.name().to_owned());
+            .and_then(|g| g.channel_renames().get(&channel.id).cloned())
+            .unwrap_or_else(|| {
+                channel
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| String::from("unknown name"))
+            });
         let channel_buffer = ChannelBuffer::guild(
             &channel_name,
-            channel.topic(),
+            channel.topic.clone(),
             &nick,
             guild.name(),
-            channel.id(),
+            channel.id,
             guild.id(),
             conn,
             config,
@@ -367,7 +381,7 @@ impl Channel {
             channel_buffer,
         )));
         Ok(Channel {
-            id: channel.id(),
+            id: channel.id,
             guild_id: Some(guild.id()),
             inner,
             config: config.clone(),
@@ -376,7 +390,7 @@ impl Channel {
     }
 
     pub fn private(
-        channel: &TwilightPrivateChannel,
+        channel: &TwilightChannel,
         conn: &ConnectionInner,
         config: &Config,
         instance: &Instance,
@@ -410,7 +424,7 @@ impl Channel {
             .rt
             .spawn({
                 let id = self.id;
-                let msg_count = self.config.message_fetch_count() as u64;
+                let msg_count = self.config.message_fetch_count() as u16;
                 let conn = conn.clone();
                 async move {
                     let message_fetcher = conn
@@ -433,9 +447,9 @@ impl Channel {
 
                     // This is a bit of a hack because the returned messages have no guild id, even if
                     // they are from a guild channel
-                    if let Some(guild_channel) = conn.cache.guild_channel(id) {
+                    if let Some(guild_channel) = conn.cache.channel(id) {
                         for msg in &mut messages {
-                            msg.guild_id = Some(guild_channel.guild_id());
+                            msg.guild_id = guild_channel.guild_id;
                         }
                     }
                     Ok(messages)
@@ -533,7 +547,7 @@ impl Channel {
         self.inner.borrow().buffer.remove_reaction(reaction);
     }
 
-    pub fn remove_message(&self, msg_id: MessageId) {
+    pub fn remove_message(&self, msg_id: Id<MessageMarker>) {
         self.inner.borrow().buffer.remove_msg(msg_id);
     }
 
@@ -541,7 +555,7 @@ impl Channel {
         self.inner.borrow().buffer.update_msg(update);
     }
 
-    pub fn redraw(&self, ignore_users: &[UserId]) {
+    pub fn redraw(&self, ignore_users: &[Id<UserMarker>]) {
         self.inner.borrow().buffer.redraw_buffer(ignore_users);
     }
 
@@ -737,7 +751,7 @@ fn send_message(channel: &Channel, conn: &ConnectionInner, input: &str) {
             };
 
             if let Some(can_send) = cache
-                .dynamic_channel(channel.id)
+                .channel(channel.id)
                 .and_then(|channel| channel.can_send(&cache))
             {
                 if !can_send {
@@ -788,11 +802,9 @@ fn send_message(channel: &Channel, conn: &ConnectionInner, input: &str) {
 }
 
 fn has_manage_message_perm(channel: &Channel, cache: &InMemoryCache) -> Option<bool> {
-    match_map!(
-        cache.dynamic_channel(channel.id),
-        Some(DynamicChannel::Guild(channel)) => channel,
-    )
-    .and_then(|discord_channel| discord_channel.has_permission(cache, Permissions::MANAGE_MESSAGES))
+    cache.channel(channel.id).and_then(|discord_channel| {
+        discord_channel.has_permission(cache, Permissions::MANAGE_MESSAGES)
+    })
 }
 
 fn request_from_reaction<'a>(reaction: &'a parsing::Reaction) -> Option<RequestReactionType<'a>> {
@@ -805,7 +817,7 @@ fn request_from_reaction<'a>(reaction: &'a parsing::Reaction) -> Option<RequestR
             }
         },
         Emoji::Custom(name, id) => RequestReactionType::Custom {
-            id: EmojiId::new(id).expect("non zero"),
+            id: Id::new(id),
             name: Some(name),
         },
         Emoji::Unicode(name) => RequestReactionType::Unicode { name },

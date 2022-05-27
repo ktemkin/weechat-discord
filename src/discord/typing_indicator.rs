@@ -3,15 +3,19 @@ use std::{
     collections::VecDeque,
     time::{SystemTime, UNIX_EPOCH},
 };
-use twilight_model::id::{ChannelId, GuildId, UserId};
+
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker, UserMarker},
+    Id,
+};
 
 const MAX_TYPING_EVENTS: usize = 50;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct TypingEntry {
-    pub channel_id: ChannelId,
-    pub guild_id: Option<GuildId>,
-    pub user: UserId,
+    pub channel_id: Id<ChannelMarker>,
+    pub guild_id: Option<Id<GuildMarker>>,
+    pub user: Id<UserMarker>,
     pub user_name: String,
     pub time: u64,
 }
@@ -63,7 +67,11 @@ impl TypingTracker {
     }
 
     /// Get the users currently typing
-    pub fn typing(&self, guild_id: Option<GuildId>, channel_id: ChannelId) -> Vec<String> {
+    pub fn typing(
+        &self,
+        guild_id: Option<Id<GuildMarker>>,
+        channel_id: Id<ChannelMarker>,
+    ) -> Vec<String> {
         self.entries
             .iter()
             .filter(|e| e.guild_id == guild_id && e.channel_id == channel_id)

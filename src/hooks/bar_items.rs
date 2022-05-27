@@ -3,9 +3,12 @@ use crate::{
     config::Config,
     discord::{discord_connection::DiscordConnection, typing_indicator::TypingTracker},
     instance::Instance,
-    twilight_utils::ext::{guild_channel_ext::GuildChannelExt, ChannelExt},
+    twilight_utils::ext::ChannelExt,
 };
-use twilight_model::id::{ChannelId, GuildId};
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker},
+    Id,
+};
 use weechat::{buffer::Buffer, hooks::BarItem, Weechat};
 
 pub struct BarItems {
@@ -57,12 +60,12 @@ impl BarItems {
                     None => return "".into(),
                 };
 
-                let channel = match connection.cache.guild_channel(channel_id) {
+                let channel = match connection.cache.channel(channel_id) {
                     Some(chan) => chan,
                     None => return "".into(),
                 };
 
-                match channel.rate_limit_per_user() {
+                match channel.rate_limit_per_user {
                     None => "".into(),
                     Some(rate_limit) => {
                         if rate_limit == 0 {
@@ -90,7 +93,7 @@ impl BarItems {
                 None => return "".into(),
             };
 
-            let channel = match cache.guild_channel(channel_id) {
+            let channel = match cache.channel(channel_id) {
                 Some(channel) => channel,
                 None => return "".into(),
             };
@@ -112,8 +115,8 @@ impl BarItems {
 
 fn terse_typing_list(
     instance: &Instance,
-    channel_id: ChannelId,
-    guild_id: Option<GuildId>,
+    channel_id: Id<ChannelMarker>,
+    guild_id: Option<Id<GuildMarker>>,
     max_names: usize,
 ) -> String {
     let (head, has_more) = get_users_for_typing_list(
@@ -136,8 +139,8 @@ fn terse_typing_list(
 
 fn expanded_typing_list(
     instance: &Instance,
-    channel_id: ChannelId,
-    guild_id: Option<GuildId>,
+    channel_id: Id<ChannelMarker>,
+    guild_id: Option<Id<GuildMarker>>,
     max_names: usize,
 ) -> String {
     let (head, has_more) = get_users_for_typing_list(
@@ -165,8 +168,8 @@ fn expanded_typing_list(
 
 fn get_users_for_typing_list(
     typing_tracker: &TypingTracker,
-    channel_id: ChannelId,
-    guild_id: Option<GuildId>,
+    channel_id: Id<ChannelMarker>,
+    guild_id: Option<Id<GuildMarker>>,
     max_names: usize,
 ) -> (Vec<String>, bool) {
     let mut users = typing_tracker.typing(guild_id, channel_id);

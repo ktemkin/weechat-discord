@@ -1,13 +1,16 @@
 use crate::{
     config::Config, discord::discord_connection::ConnectionInner, refcell::RefCell,
-    twilight_utils::ext::ShallowUser, weecord_renderer::WeecordRenderer,
+    twilight_utils::ext::ChannelExt, weecord_renderer::WeecordRenderer,
 };
 use std::rc::Rc;
 
 use twilight_cache_inmemory::model::CachedGuild as TwilightGuild;
 use twilight_model::{
-    channel::{GuildChannel, PrivateChannel},
-    id::{ChannelId, GuildId},
+    channel::Channel,
+    id::{
+        marker::{ChannelMarker, GuildMarker},
+        Id,
+    },
     user::User,
 };
 use weechat::{
@@ -19,16 +22,23 @@ pub struct PinsBuffer(WeecordRenderer);
 
 impl PinsBuffer {
     pub fn new_private(
-        channel: &PrivateChannel,
+        channel: &Channel,
         conn: &ConnectionInner,
         config: &Config,
     ) -> anyhow::Result<Self> {
         Self::new(
-            &Self::private_buffer_id(&channel.recipients),
+            &Self::private_buffer_id(
+                channel
+                    .recipients
+                    .as_ref()
+                    .expect("private channel to have recipients"),
+            ),
             &channel
                 .recipients
+                .as_ref()
+                .expect("private channel to have recipients")
                 .iter()
-                .map(|r| r.name())
+                .map(|r| r.name.as_ref())
                 .collect::<Vec<_>>()
                 .join(", "),
             None,
@@ -40,21 +50,21 @@ impl PinsBuffer {
     }
 
     pub fn new_guild(
-        channel: &GuildChannel,
+        channel: &Channel,
         guild: &TwilightGuild,
         conn: &ConnectionInner,
         config: &Config,
     ) -> anyhow::Result<Self> {
         let clean_guild_name = crate::utils::clean_name(guild.name());
-        let clean_channel_name = crate::utils::clean_name(channel.name());
+        let clean_channel_name = crate::utils::clean_name(&channel.name());
         let buffer_name = format!("discord.{}.{}.pins", clean_guild_name, clean_channel_name);
 
         Self::new(
             &buffer_name,
-            channel.name(),
+            &channel.name(),
             Some(clean_guild_name),
             Some(guild.id()),
-            channel.id(),
+            channel.id,
             conn,
             config,
         )
@@ -64,8 +74,8 @@ impl PinsBuffer {
         buffer_name: &str,
         channel_display_name: &str,
         clean_guild_name: Option<String>,
-        guild_id: Option<GuildId>,
-        channel_id: ChannelId,
+        guild_id: Option<Id<GuildMarker>>,
+        channel_id: Id<ChannelMarker>,
         conn: &ConnectionInner,
         config: &Config,
     ) -> anyhow::Result<Self> {
@@ -92,9 +102,9 @@ impl PinsBuffer {
 
         buffer.set_short_name(&format!("Pins for #{}", channel_display_name));
         if let Some(guild_id) = guild_id {
-            buffer.set_localvar("guild_id", &guild_id.0.to_string());
+            buffer.set_localvar("guild_id", &guild_id.to_string());
         }
-        buffer.set_localvar("channel_id", &channel_id.0.to_string());
+        buffer.set_localvar("channel_id", &channel_id.to_string());
         buffer.set_localvar("weecord_type", "pins");
         if let Some(clean_guild_name) = clean_guild_name {
             buffer.set_localvar("type", "channel");
@@ -153,8 +163,8 @@ impl PinsInner {
 
 #[derive(Clone)]
 pub struct Pins {
-    pub(crate) guild_id: Option<GuildId>,
-    pub(crate) channel_id: ChannelId,
+    pub(crate) guild_id: Option<Id<GuildMarker>>,
+    pub(crate) channel_id: Id<ChannelMarker>,
     inner: Rc<RefCell<PinsInner>>,
     config: Config,
 }
@@ -165,8 +175,8 @@ impl Pins {
     }
 
     pub fn new(
-        guild_id: Option<GuildId>,
-        channel_id: ChannelId,
+        guild_id: Option<Id<GuildMarker>>,
+        channel_id: Id<ChannelMarker>,
         conn: ConnectionInner,
         config: &Config,
     ) -> Self {
@@ -187,14 +197,14 @@ impl Pins {
 
         let pins_buffer = match self.guild_id.and_then(|g| cache.guild(g)) {
             Some(guild) => {
-                if let Some(channel) = cache.guild_channel(self.channel_id) {
+                if let Some(channel) = cache.channel(self.channel_id) {
                     PinsBuffer::new_guild(&channel, &guild, &conn, &self.config)
                 } else {
                     Err(anyhow::anyhow!("Unable to find guild channel"))
                 }
             },
             None => {
-                if let Some(channel) = cache.private_channel(self.channel_id) {
+                if let Some(channel) = cache.channel(self.channel_id) {
                     PinsBuffer::new_private(&channel, &conn, &self.config)
                 } else {
                     Err(anyhow::anyhow!("Unable to find guild channel"))

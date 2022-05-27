@@ -1,10 +1,13 @@
 use std::borrow::Cow;
-use twilight_model::id::{ChannelId, GuildId};
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker},
+    Id,
+};
 use weechat::buffer::Buffer;
 
 pub trait BufferExt {
-    fn channel_id(&self) -> Option<ChannelId>;
-    fn guild_id(&self) -> Option<GuildId>;
+    fn channel_id(&self) -> Option<Id<ChannelMarker>>;
+    fn guild_id(&self) -> Option<Id<GuildMarker>>;
 
     fn history_loaded(&self) -> bool;
     fn set_history_loaded(&self);
@@ -13,16 +16,16 @@ pub trait BufferExt {
 }
 
 impl BufferExt for Buffer<'_> {
-    fn channel_id(&self) -> Option<ChannelId> {
+    fn channel_id(&self) -> Option<Id<ChannelMarker>> {
         self.get_localvar("channel_id")
             .and_then(|ch| ch.parse().ok())
-            .map(ChannelId)
+            .map(Id::new)
     }
 
-    fn guild_id(&self) -> Option<GuildId> {
+    fn guild_id(&self) -> Option<Id<GuildMarker>> {
         self.get_localvar("guild_id")
             .and_then(|ch| ch.parse().ok())
-            .map(GuildId)
+            .map(Id::new)
     }
 
     fn history_loaded(&self) -> bool {

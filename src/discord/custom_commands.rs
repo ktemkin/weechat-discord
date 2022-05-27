@@ -1,20 +1,23 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use twilight_model::id::{ChannelId, GuildId};
+use twilight_model::id::{
+    marker::{ChannelMarker, GuildMarker},
+    Id,
+};
 
 #[derive(Serialize, Debug)]
 pub struct GuildSubscriptionFull {
-    pub guild_id: GuildId,
+    pub guild_id: Id<GuildMarker>,
     pub typing: bool,
     pub activities: bool,
     pub threads: bool,
-    pub channels: HashMap<ChannelId, Vec<Vec<u8>>>,
+    pub channels: HashMap<Id<ChannelMarker>, Vec<Vec<u8>>>,
 }
 
 #[derive(Serialize, Debug)]
 pub struct GuildSubscriptionMinimal {
-    pub guild_id: GuildId,
-    pub channels: HashMap<ChannelId, Vec<Vec<u8>>>,
+    pub guild_id: Id<GuildMarker>,
+    pub channels: HashMap<Id<ChannelMarker>, Vec<Vec<u8>>>,
 }
 
 #[derive(Serialize, Debug)]
@@ -31,7 +34,7 @@ pub struct GuildSubscription {
 }
 
 impl GuildSubscription {
-    pub fn as_message(self) -> twilight_gateway::shard::raw_message::Message {
+    pub fn into_message(self) -> twilight_gateway::shard::raw_message::Message {
         twilight_gateway::shard::raw_message::Message::Text(
             serde_json::to_string(&self).expect("valid serde"),
         )
