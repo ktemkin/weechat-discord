@@ -116,8 +116,9 @@ impl MemberList {
                     this_list.insert(index as usize, item);
                 },
                 MemberListUpdateOp::Invalidate { range } => {
-                    tracing::trace!(?range, "INVALIDATE");
-                    this_list.drain((range[0] as usize)..=(range[0] as usize));
+                    let old_len = this_list.len();
+                    this_list.drain((range[0] as usize)..=(range[1] as usize));
+                    tracing::trace!(?range, old_len, new_len=this_list.len(), "INVALIDATE");
                 },
                 MemberListUpdateOp::Unknown => unreachable!(),
             }
