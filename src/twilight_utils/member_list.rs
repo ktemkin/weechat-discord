@@ -57,13 +57,12 @@ impl MemberList {
     pub fn apply_update(&mut self, update: MemberListUpdate) {
         let this_list = self.raw_lists.entry(update.id).or_default();
         let _span =
-            tracing::info_span!("member list update", guild.id = ?update.guild_id).entered();
+            tracing::info_span!("member list update", guild.id = ?update.guild_id, len=this_list.len()).entered();
         for op in update.ops {
             match op {
                 MemberListUpdateOp::Sync { range, items } => {
                     tracing::trace!(
                         ?range,
-                        items.len = items.len(),
                         ?update.id,
                         "SYNC",
                     );
@@ -116,9 +115,19 @@ impl MemberList {
                     this_list.insert(index as usize, item);
                 },
                 MemberListUpdateOp::Invalidate { range } => {
-                    let old_len = this_list.len();
+                    if range[1] as usize > this_list.len() {
+                        tracing::error!(
+                            "Attempted to perform invalid INVALIDATE op: Range {:?}, len {}, {} > \
+                             {}",
+                            range,
+                            this_list.len(),
+                            range[1],
+                            this_list.len()
+                        );
+                        continue;
+                    }
                     this_list.drain((range[0] as usize)..=(range[1] as usize));
-                    tracing::trace!(?range, old_len, new_len=this_list.len(), "INVALIDATE");
+                    tracing::trace!(?range, new_len = this_list.len(), "INVALIDATE");
                 },
                 MemberListUpdateOp::Unknown => unreachable!(),
             }
