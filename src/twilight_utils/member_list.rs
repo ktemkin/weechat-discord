@@ -88,6 +88,18 @@ impl MemberList {
                             );
                         },
                     }
+                    if index as usize >= this_list.len() {
+                        tracing::error!(
+                            "Attempted to perform invalid UPDATE op: Index {}, len {}, {} >= {}",
+                            index,
+                            this_list.len(),
+                            index,
+                            this_list.len()
+                        );
+                        // Ignore error when debugging
+                        #[cfg(not(feature = "weecord-debug"))]
+                        continue;
+                    }
                     this_list[index as usize] = item;
                 },
                 MemberListUpdateOp::Delete { index } => {
@@ -96,6 +108,18 @@ impl MemberList {
                     //       to move it's position, we can't trivially tell if it's being moved,
                     //       or actually deleted
                     tracing::trace!(index, "DELETE");
+                    if index as usize >= this_list.len() {
+                        tracing::error!(
+                            "Attempted to perform invalid DELETE op: Index {}, len {}, {} >= {}",
+                            index,
+                            this_list.len(),
+                            index,
+                            this_list.len()
+                        );
+                        // Ignore error when debugging
+                        #[cfg(not(feature = "weecord-debug"))]
+                        continue
+                    }
                     this_list.remove(index as usize);
                 },
                 MemberListUpdateOp::Insert { index, item } => {
@@ -112,6 +136,18 @@ impl MemberList {
                             );
                         },
                     }
+                    if index as usize > this_list.len() {
+                        tracing::error!(
+                            "Attempted to perform invalid INSERT op: Index {}, len {}, {} > {}",
+                            index,
+                            this_list.len(),
+                            index,
+                            this_list.len()
+                        );
+                        // Ignore error when debugging
+                        #[cfg(not(feature = "weecord-debug"))]
+                        continue
+                    }
                     this_list.insert(index as usize, item);
                 },
                 MemberListUpdateOp::Invalidate { range } => {
@@ -124,6 +160,8 @@ impl MemberList {
                             range[1],
                             this_list.len()
                         );
+                        // Ignore error when debugging
+                        #[cfg(not(feature = "weecord-debug"))]
                         continue;
                     }
                     this_list.drain((range[0] as usize)..=(range[1] as usize));
