@@ -92,9 +92,13 @@ The script will attempt to use [ripgrep](https://github.com/BurntSushi/ripgrep) 
 
 If the script fails, you can get the tokens manually.
 
-Open Devtools (ctrl+shift+i or cmd+opt+i) and navigate to Application tab > Local Storage on left > discordapp.com > "token".
-Discord deletes the token once the page has loaded, so you will need to refresh the page and to grab it quickly
-(disabling your network connection may allow you to grab it more easily).
+With the discord app open in your browser:
+1) Open Devtools (ctrl+shift+i or cmd+opt+i)
+2) Navigate to the Network tab
+3) View only WebSockets by clicking "WS" in the inspector bar
+4) Reload the page and select the "gateway.discord.gg" connection
+5) Navigate to the "Response" tab of the request
+6) The first or second message should begin with `{"op":2,"d":{"token":"<your token here>"...`
 
 Once you have your token you can save your token **insecurely** with 
 
