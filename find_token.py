@@ -39,7 +39,7 @@ def id2username(id: str) -> str:
 def parseIdPart(id_part: str) -> str:
     return urlsafe_b64decode(id_part).decode()
 
-
+# This doesn't return the correct value anymore, discord changed something
 def parseTimePart(time_part: str) -> datetime:
     if len(time_part) < 6:
         raise Exception("Time part too short")
@@ -75,18 +75,12 @@ def main():
     print("Searching for Discord localstorage databases...")
     # First, we search for .ldb files, these are the leveldb files used by chromium to store localstorage data,
     # which contains the discord token.
-    rg = False
     # Try and use ripgrep, because it's much faster, otherwise, fallback to `find`.
     try:
         subprocess.check_output(["rg", "--version"])
-        results = run_command("rg ~/ --files -g '*.ldb'")
-        rg = True
+        results = run_command("rg ~/ --hidden --files -g '*.ldb' -g '*.log' -g 'data.sqlite'")
     except FileNotFoundError:
-        results = run_command("find ~/ -name '*.ldb'")
-
-    if len(results) == 0 and rg:
-        # Try again, but search hidden directories.
-        results = run_command("rg ~/ --hidden --files -g '*.ldb'")
+        results = run_command("find ~/ -name '*.ldb' -or -name '*.log' -or -name 'data.sqlite'")
 
     if len(results) == 0:
         print("No databases found.")
@@ -96,35 +90,45 @@ def main():
     discord_databases = list(
         filter(
             lambda x: any([db in x.lower() for db in DB_FILTER])
-            and "Local Storage" in x,
+            and ("Local Storage" in x or "ls/" in x),
             results,
         )
     )
 
     # Then collect strings that look like discord tokens.
-    token_candidates = set()
+    token_candidates = {}
     token_re = re.compile(rb'([a-z0-9_-]{23,28}\.[a-z0-9_-]{6,7}\.[a-z0-9_-]{27})', flags=re.IGNORECASE)
     for database in discord_databases:
         for line in open(database, 'rb'):
             for result in token_re.finditer(line):
                 try:
-                    token_candidates.add(parseToken(result.group(0).decode()))
+                    token_candidates[parseToken(result.group(0).decode())] = database
                 except:
                     continue
+    token_candidates = list(token_candidates.items())
 
     if len(token_candidates) == 0:
         print("No Discord tokens found")
         return
 
     print("Possible Discord tokens found (sorted newest to oldest):\n")
-    token_candidates = sorted(token_candidates, key=lambda t: t.created, reverse=True)
-    for token in token_candidates:
+    token_candidates = sorted(token_candidates, key=lambda t: t[0].created, reverse=True)
+    for [token, db] in token_candidates:
+        if "discord/Local Storage/" in db:
+            source = "Discord App"
+        elif "ivaldi" in db: # case insensitive hack
+            source = "Vivaldi"
+        elif "Local Storage/" in db:
+            source = "Chrome"
+        elif "ls/data.sqlite" in db:
+            source = "Firefox"
+
         if skip_username_lookup:
-            print("{} created: {}".format(token.raw, token.created))
+            print("{} created: {}, source: {}".format(token.raw, token.created, source))
         else:
             print(
-                "@{}: {} created: {}".format(
-                    id2username(token.userid), token.raw, token.created
+                "@{}: {} created: {}, source: {}".format(
+                    id2username(token.userid), token.raw, token.created, source
                 )
             )
 
