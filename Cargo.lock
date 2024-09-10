@@ -2473,7 +2473,7 @@ dependencies = [
  "libc",
  "pipe-channel",
  "weechat-macro",
- "weechat-sys 0.4.0 (git+https://github.com/ktemkin/rust-weechat?branch=mk3)",
+ "weechat-sys",
 ]
 
 [[package]]
@@ -2515,7 +2515,7 @@ dependencies = [
  "twilight-util",
  "weechat",
  "weechat-command-parser",
- "weechat-sys 0.4.0 (git+https://github.com/terminal-discord/rust-weechat?branch=mk3)",
+ "weechat-sys",
 ]
 
 [[package]]
@@ -2533,15 +2533,6 @@ dependencies = [
 name = "weechat-sys"
 version = "0.4.0"
 source = "git+https://github.com/ktemkin/rust-weechat?branch=mk3#ca6aafc507be7a56df702eace7397c0fc7b58c08"
-dependencies = [
- "bindgen",
- "libc",
-]
-
-[[package]]
-name = "weechat-sys"
-version = "0.4.0"
-source = "git+https://github.com/terminal-discord/rust-weechat?branch=mk3#8b338575e61e067275673775f593617ebbe5f7c3"
 dependencies = [
  "bindgen",
  "libc",

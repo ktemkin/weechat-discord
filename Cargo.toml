@@ -97,7 +97,7 @@ branch = "mk3"
 features = ["async", "unsound"]
 
 [dependencies.weechat-sys]
-git = "https://github.com/terminal-discord/rust-weechat"
+git = "https://github.com/ktemkin/rust-weechat"
 branch = "mk3"
 
 [dependencies.twilight-cache-inmemory]
