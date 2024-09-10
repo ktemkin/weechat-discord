@@ -35,8 +35,8 @@ rand = "0.8.4"
 itertools = "0.10.1"
 serde_json = "1.0.72"
 parking_lot = "0.12.0"
-time = { features = ["macros", "formatting", "local-offset"], git = "https://github.com/time-rs/time" }
 chrono = "0.4.19"
+time = { version = "0.3.36", features = ["formatting", "local-offset", "macros"] }
 
 [dependencies.hyper]
 version = "0.14.15"
@@ -92,7 +92,7 @@ git = "https://github.com/terminal-discord/weechat-command-parser"
 
 
 [dependencies.weechat]
-git = "https://github.com/terminal-discord/rust-weechat"
+git = "https://github.com/ktemkin/rust-weechat"
 branch = "mk3"
 features = ["async", "unsound"]
 
